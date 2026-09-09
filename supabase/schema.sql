@@ -210,11 +210,20 @@ create policy "perfis_select_own" on perfis
   for select to authenticated
   using (user_id = auth.uid());
 
--- empresas: cada usuário só enxerga a própria empresa (via perfis).
+-- empresas: cada usuário só enxerga/edita a própria empresa (via perfis). O n8n (workflow 11,
+-- endpoint /atualizar-cabeleireiros) só monta o PATCH com o campo `cabeleireiros` — a policy
+-- por si só permitiria editar qualquer coluna da própria linha (nome/slug/etc.), mas isso não é
+-- exposto por nenhum endpoint hoje.
 drop policy if exists "empresas_select_own" on empresas;
 create policy "empresas_select_own" on empresas
   for select to authenticated
   using (id = public.empresa_atual());
+
+drop policy if exists "empresas_update_own" on empresas;
+create policy "empresas_update_own" on empresas
+  for update to authenticated
+  using (id = public.empresa_atual())
+  with check (id = public.empresa_atual());
 
 -- servicos/agendamentos/bloqueios: CRUD completo, sempre restrito à empresa do usuário logado.
 -- Nenhuma policy para o role `anon` de propósito — ver nota no topo do arquivo.

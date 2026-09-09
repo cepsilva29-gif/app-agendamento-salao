@@ -165,6 +165,18 @@
         </div>
 
         <div class="card rounded-xl p-5">
+          <h2 class="text-xs text-gray-400 uppercase tracking-wide mb-4">Cabeleireiros</h2>
+          <form id="formCabeleireiros" class="space-y-3">
+            <input type="text" id="cabeleireirosLista" placeholder="Nomes separados por vírgula (ex: Carlos, Ana, Bruno)"
+              class="w-full bg-[#0f1115] border border-[#262b33] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold">
+            <button type="submit" id="btnSalvarCabeleireiros"
+              class="w-full bg-gold text-black text-sm font-semibold py-2.5 rounded-lg disabled:opacity-40">Salvar
+              lista</button>
+            <p id="cabeleireirosErro" class="text-xs text-red-400 hidden"></p>
+          </form>
+        </div>
+
+        <div class="card rounded-xl p-5">
           <h2 class="text-xs text-gray-400 uppercase tracking-wide mb-4">Fechar agenda de um cabeleireiro</h2>
           <form id="formBloqueio" class="space-y-3">
             <select id="bloqueioCabeleireiro" required
@@ -364,6 +376,7 @@
           document.getElementById('nomeSalaoHeader').textContent = dados.nome || 'Painel';
           cabeleireiros = dados.cabeleireiros || [];
           popularSelectCabeleireiro();
+          el.cabeleireirosLista.value = cabeleireiros.join(', ');
         } catch (err) {
           document.getElementById('nomeSalaoHeader').textContent = 'Painel';
         }
@@ -407,6 +420,10 @@
         btnCriarBloqueio: document.getElementById('btnCriarBloqueio'),
         bloqueioErro: document.getElementById('bloqueioErro'),
         listaBloqueios: document.getElementById('listaBloqueios'),
+        formCabeleireiros: document.getElementById('formCabeleireiros'),
+        cabeleireirosLista: document.getElementById('cabeleireirosLista'),
+        btnSalvarCabeleireiros: document.getElementById('btnSalvarCabeleireiros'),
+        cabeleireirosErro: document.getElementById('cabeleireirosErro'),
         formServico: document.getElementById('formServico'),
         servicoNome: document.getElementById('servicoNome'),
         servicoPreco: document.getElementById('servicoPreco'),
@@ -593,6 +610,42 @@
 
       el.btnAtualizar.addEventListener('click', carregarAgendamentos);
       el.inputData.addEventListener('change', carregarAgendamentos);
+
+      // ---- Cabeleireiros (lista da empresa) ----
+      el.formCabeleireiros.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        el.cabeleireirosErro.classList.add('hidden');
+
+        const lista = el.cabeleireirosLista.value
+          .split(',').map(s => s.trim()).filter(Boolean);
+
+        el.btnSalvarCabeleireiros.disabled = true;
+        el.btnSalvarCabeleireiros.textContent = 'Salvando...';
+
+        try {
+          const resp = await fetchAutenticado(`${N8N_BASE_URL}/atualizar-cabeleireiros`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cabeleireiros: lista })
+          });
+          const dados = await resp.json().catch(() => ({}));
+
+          if (resp.status === 200 && dados.sucesso !== false) {
+            cabeleireiros = dados.cabeleireiros || lista;
+            popularSelectCabeleireiro();
+            el.cabeleireirosLista.value = cabeleireiros.join(', ');
+          } else {
+            el.cabeleireirosErro.textContent = dados.mensagem || 'Não foi possível salvar a lista.';
+            el.cabeleireirosErro.classList.remove('hidden');
+          }
+        } catch (err) {
+          el.cabeleireirosErro.textContent = 'Erro de conexão. Tente novamente.';
+          el.cabeleireirosErro.classList.remove('hidden');
+        } finally {
+          el.btnSalvarCabeleireiros.disabled = false;
+          el.btnSalvarCabeleireiros.textContent = 'Salvar lista';
+        }
+      });
 
       // ---- Fechamento de agenda por cabeleireiro ----
       function popularSelectCabeleireiro() {

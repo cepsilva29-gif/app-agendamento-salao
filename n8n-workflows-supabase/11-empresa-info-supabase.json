@@ -321,6 +321,167 @@
         440,
         480
       ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "atualizar-cabeleireiros",
+        "responseMode": "responseNode",
+        "options": { "allowedOrigins": "*" }
+      },
+      "id": "s11-webhook-atualizar-cabeleireiros",
+      "name": "Webhook Atualizar Cabeleireiros",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 680],
+      "webhookId": "atualizar-cabeleireiros-post-0001-supabase"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/auth/v1/user",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "={{ $json.headers.authorization }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "s11-auth-verify-cab",
+      "name": "Autenticar (Cabeleireiros)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 680],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 1 },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "s11-auth-if-cab",
+      "name": "Autenticado? (Cabeleireiros)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [440, 680]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Valida o payload: espera { cabeleireiros: [\"Carlos\", \"Ana\", ...] }\nconst body = $('Webhook Atualizar Cabeleireiros').first().json.body || {};\nconst lista = body.cabeleireiros;\n\nif (!Array.isArray(lista) || !lista.every(n => typeof n === 'string')) {\n  return [{ json: { valido: false, erro: 'cabeleireiros deve ser uma lista de nomes (texto)' } }];\n}\n\nconst limpos = lista.map(n => n.trim()).filter(Boolean);\n\nreturn [{ json: { valido: true, cabeleireiros: limpos } }];"
+      },
+      "id": "s11-validar-cab",
+      "name": "Validar Dados (Cabeleireiros)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 680]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 1 },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.valido }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "s11-validos-if-cab",
+      "name": "Dados Validos? (Cabeleireiros)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [880, 680]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/empresas",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "={{ $('Webhook Atualizar Cabeleireiros').first().json.headers.authorization }}" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "id", "value": "gt.0" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"cabeleireiros\": $json.cabeleireiros } }}",
+        "options": {}
+      },
+      "id": "s11-atualizar-cab",
+      "name": "Atualizar Cabeleireiros (PostgREST)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1100, 600]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"sucesso\": true, \"mensagem\": \"Cabeleireiros atualizados.\", \"cabeleireiros\": $json.cabeleireiros } }}",
+        "options": {
+          "responseHeaders": { "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }] }
+        }
+      },
+      "id": "s11-responder-cab",
+      "name": "Responder Sucesso (Cabeleireiros)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1320, 600]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"sucesso\": false, \"mensagem\": $json.erro } }}",
+        "options": {
+          "responseHeaders": { "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }] },
+          "responseCode": 400
+        }
+      },
+      "id": "s11-invalido-cab",
+      "name": "Responder Invalido (Cabeleireiros)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 860]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"sucesso\": false, \"mensagem\": \"Nao autorizado.\" } }}",
+        "options": {
+          "responseHeaders": { "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }] },
+          "responseCode": 401
+        }
+      },
+      "id": "s11-401-cab",
+      "name": "Responder Nao Autorizado (Cabeleireiros)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [440, 900]
     }
   ],
   "connections": {
@@ -425,6 +586,30 @@
           }
         ]
       ]
+    },
+    "Webhook Atualizar Cabeleireiros": {
+      "main": [[{ "node": "Autenticar (Cabeleireiros)", "type": "main", "index": 0 }]]
+    },
+    "Autenticar (Cabeleireiros)": {
+      "main": [[{ "node": "Autenticado? (Cabeleireiros)", "type": "main", "index": 0 }]]
+    },
+    "Autenticado? (Cabeleireiros)": {
+      "main": [
+        [{ "node": "Validar Dados (Cabeleireiros)", "type": "main", "index": 0 }],
+        [{ "node": "Responder Nao Autorizado (Cabeleireiros)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Validar Dados (Cabeleireiros)": {
+      "main": [[{ "node": "Dados Validos? (Cabeleireiros)", "type": "main", "index": 0 }]]
+    },
+    "Dados Validos? (Cabeleireiros)": {
+      "main": [
+        [{ "node": "Atualizar Cabeleireiros (PostgREST)", "type": "main", "index": 0 }],
+        [{ "node": "Responder Invalido (Cabeleireiros)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Atualizar Cabeleireiros (PostgREST)": {
+      "main": [[{ "node": "Responder Sucesso (Cabeleireiros)", "type": "main", "index": 0 }]]
     }
   },
   "active": false,
