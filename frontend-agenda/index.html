@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+  <title>Agendamento Online</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    .gold {
+      color: #c9a24b;
+    }
+
+    .bg-gold {
+      background-color: #c9a24b;
+    }
+
+    .border-gold {
+      border-color: #c9a24b;
+    }
+
+    ::-webkit-scrollbar {
+      height: 6px;
+      width: 6px;
+    }
+  </style>
+</head>
+
+<body class="bg-gray-900 min-h-screen">
+
+  <!-- ============ CONFIGURAÇÃO ============ -->
+  <script>
+    // Edite aqui a URL base dos webhooks do n8n (sem barra no final).
+    // Detecta automaticamente ambiente local (127.0.0.1/localhost/file://) vs produção.
+    const IS_LOCAL = location.protocol === "file:" || ["localhost", "127.0.0.1"].includes(location.hostname);
+    const N8N_BASE_URL = IS_LOCAL
+      ? "http://127.0.0.1:5678/webhook"
+      : "https://n8n.engenhariadedadosn8n.shop/webhook";
+    // Identificador da empresa (slug), enviado em toda chamada aos webhooks públicos abaixo
+    // (query string nos GET, campo "slug" no body do POST de criar-agendamento — o mecanismo de
+    // path dinâmico do n8n (":slug/...") não serve pra isso, é reservado para webhooks de espera
+    // internos). Edite por instalação — mesmo padrão de edição manual por deploy que
+    // N8N_BASE_URL já usa. Nome do salão e cabeleireiros não são mais hardcoded aqui — vêm de
+    // /empresa-info-publico (ver carregarEmpresaInfo()).
+    const EMPRESA_SLUG = "boot-n8n";
+  </script>
+
+  <div class="max-w-md mx-auto min-h-screen bg-white shadow-xl flex flex-col">
+
+    <!-- Cabeçalho -->
+    <header class="bg-black text-white px-5 pt-8 pb-6 rounded-b-3xl">
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 rounded-full bg-gold flex items-center justify-center font-bold text-black text-lg">✂
+        </div>
+        <div>
+          <h1 class="text-lg font-semibold leading-tight" id="nomeSalaoHeader">Salão Elegance</h1>
+          <p class="text-xs text-gray-300">Agende seu horário em segundos</p>
+        </div>
+      </div>
+    </header>
+
+    <main class="flex-1 px-5 py-6 space-y-8">
+
+      <!-- Passo 1: Serviço -->
+      <section>
+        <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">1. Escolha o serviço</h2>
+        <select id="selectServico"
+          class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-gray-800 bg-white focus:border-gold focus:outline-none">
+          <option value="">Carregando serviços...</option>
+        </select>
+      </section>
+
+      <!-- Passo 2: Cabeleireiro -->
+      <section>
+        <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">2. Escolha o cabeleireiro</h2>
+        <div id="listaCabeleireiros" class="flex flex-wrap gap-2"></div>
+      </section>
+
+      <!-- Passo 3: Data -->
+      <section>
+        <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">3. Escolha a data</h2>
+        <input type="date" id="inputData"
+          class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-gray-800 focus:border-gold focus:outline-none">
+      </section>
+
+      <!-- Passo 4: Horário -->
+      <section>
+        <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">4. Escolha o horário</h2>
+        <div id="gradeHorarios" class="grid grid-cols-4 gap-2">
+          <div class="col-span-4 text-sm text-gray-400">Selecione um serviço e uma data.</div>
+        </div>
+      </section>
+
+      <!-- Passo 5: Dados do cliente -->
+      <section>
+        <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">5. Seus dados</h2>
+        <div class="space-y-3">
+          <input type="text" id="inputNome" placeholder="Nome completo"
+            class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-gold focus:outline-none">
+          <input type="tel" id="inputWhatsapp" placeholder="(11) 99999-9999"
+            class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-gold focus:outline-none">
+        </div>
+      </section>
+    </main>
+
+    <!-- Botão de confirmação -->
+    <div class="px-5 pb-6 pt-2 sticky bottom-0 bg-white border-t border-gray-100">
+      <div id="resumoSelecao" class="text-xs text-gray-500 mb-2 hidden"></div>
+      <button id="btnConfirmar"
+        class="w-full bg-black text-white font-semibold py-4 rounded-xl hover:bg-gray-900 transition disabled:opacity-40 disabled:cursor-not-allowed">
+        Confirmar Agendamento
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal de feedback -->
+  <div id="modalOverlay" class="fixed inset-0 bg-black/60 hidden items-center justify-center px-6 z-50">
+    <div class="bg-white rounded-2xl p-6 max-w-sm w-full text-center">
+      <div id="modalIcone" class="text-5xl mb-3"></div>
+      <h3 id="modalTitulo" class="text-lg font-bold mb-2 text-gray-900"></h3>
+      <p id="modalMensagem" class="text-sm text-gray-600 mb-5"></p>
+      <button id="modalFechar" class="w-full bg-black text-white font-semibold py-3 rounded-xl">Fechar</button>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const estado = {
+        servicos: [],
+        cabeleireiros: [],
+        servicoSelecionado: null,
+        cabeleireiroSelecionado: null,
+        data: null,
+        horaSelecionada: null
+      };
+
+      const el = {
+        selectServico: document.getElementById('selectServico'),
+        listaCabeleireiros: document.getElementById('listaCabeleireiros'),
+        inputData: document.getElementById('inputData'),
+        gradeHorarios: document.getElementById('gradeHorarios'),
+        inputNome: document.getElementById('inputNome'),
+        inputWhatsapp: document.getElementById('inputWhatsapp'),
+        btnConfirmar: document.getElementById('btnConfirmar'),
+        resumoSelecao: document.getElementById('resumoSelecao'),
+        modalOverlay: document.getElementById('modalOverlay'),
+        modalIcone: document.getElementById('modalIcone'),
+        modalTitulo: document.getElementById('modalTitulo'),
+        modalMensagem: document.getElementById('modalMensagem'),
+        modalFechar: document.getElementById('modalFechar')
+      };
+
+      // Data mínima = hoje
+      const hoje = new Date();
+      el.inputData.min = hoje.toISOString().slice(0, 10);
+
+      function formatarMoeda(v) {
+        return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      }
+
+      function mascaraTelefone(valor) {
+        const numeros = valor.replace(/\D/g, '').slice(0, 11);
+        if (numeros.length <= 2) return numeros;
+        if (numeros.length <= 7) return `(${numeros.slice(0, 2)}) ${numeros.slice(2)}`;
+        return `(${numeros.slice(0, 2)}) ${numeros.slice(2, 7)}-${numeros.slice(7)}`;
+      }
+
+      el.inputWhatsapp.addEventListener('input', (e) => {
+        e.target.value = mascaraTelefone(e.target.value);
+      });
+
+      function abrirModal({ sucesso, titulo, mensagem }) {
+        el.modalIcone.textContent = sucesso ? '✅' : '⚠️';
+        el.modalTitulo.textContent = titulo;
+        el.modalMensagem.textContent = mensagem;
+        el.modalOverlay.classList.remove('hidden');
+        el.modalOverlay.classList.add('flex');
+      }
+      el.modalFechar.addEventListener('click', () => {
+        el.modalOverlay.classList.add('hidden');
+        el.modalOverlay.classList.remove('flex');
+      });
+
+      // ---- Dados da empresa (nome + cabeleireiros) ----
+      async function carregarEmpresaInfo() {
+        try {
+          const resp = await fetch(`${N8N_BASE_URL}/empresa-info-publico?slug=${encodeURIComponent(EMPRESA_SLUG)}`);
+          const dados = await resp.json();
+          document.getElementById('nomeSalaoHeader').textContent = dados.nome || 'Agendamento Online';
+          estado.cabeleireiros = dados.cabeleireiros || [];
+        } catch (err) {
+          document.getElementById('nomeSalaoHeader').textContent = 'Agendamento Online';
+        } finally {
+          renderizarCabeleireiros();
+        }
+      }
+
+      // ---- Carregar serviços (Passo 1) ----
+      async function carregarServicos() {
+        try {
+          const resp = await fetch(`${N8N_BASE_URL}/servicos?slug=${encodeURIComponent(EMPRESA_SLUG)}`);
+          const dados = await resp.json();
+          estado.servicos = dados.servicos || [];
+          renderizarServicos();
+        } catch (err) {
+          el.selectServico.innerHTML = '<option value="">Erro ao carregar serviços</option>';
+        }
+      }
+
+      function renderizarServicos() {
+        if (!estado.servicos.length) {
+          el.selectServico.innerHTML = '<option value="">Nenhum serviço disponível no momento</option>';
+          return;
+        }
+        el.selectServico.innerHTML = '<option value="">Selecione um serviço...</option>' +
+          estado.servicos.map((s, idx) =>
+            `<option value="${idx}">${s.nome} — ${formatarMoeda(s.preco)} (${s.duracao_minutos} min)</option>`
+          ).join('');
+      }
+
+      el.selectServico.addEventListener('change', (e) => {
+        const idx = e.target.value;
+        estado.servicoSelecionado = idx === '' ? null : estado.servicos[idx];
+        estado.horaSelecionada = null;
+        atualizarResumo();
+        if (estado.servicoSelecionado && estado.data && estado.cabeleireiroSelecionado) {
+          carregarHorariosDisponiveis(estado.data);
+        }
+      });
+
+      // ---- Passo 2: Cabeleireiro (agenda por profissional) ----
+      function renderizarCabeleireiros() {
+        el.listaCabeleireiros.innerHTML = '';
+        if (!estado.cabeleireiros.length) {
+          el.listaCabeleireiros.innerHTML = '<p class="text-sm text-gray-400">Nenhum cabeleireiro disponível.</p>';
+          return;
+        }
+        estado.cabeleireiros.forEach((nome) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.textContent = nome;
+          btn.className = 'border-2 rounded-full px-4 py-2 text-sm font-medium transition border-gray-200 hover:border-gold';
+          btn.addEventListener('click', () => {
+            estado.cabeleireiroSelecionado = nome;
+            [...el.listaCabeleireiros.children].forEach(b => b.classList.remove('bg-black', 'text-white', 'border-black'));
+            btn.classList.add('bg-black', 'text-white', 'border-black');
+            estado.horaSelecionada = null;
+            atualizarResumo();
+            if (estado.servicoSelecionado && estado.data) carregarHorariosDisponiveis(estado.data);
+          });
+          el.listaCabeleireiros.appendChild(btn);
+        });
+      }
+
+      // ---- Passo 2: Data ----
+      el.inputData.addEventListener('change', (e) => {
+        estado.data = e.target.value;
+        estado.horaSelecionada = null;
+        atualizarResumo();
+        if (estado.data && estado.servicoSelecionado && estado.cabeleireiroSelecionado) {
+          carregarHorariosDisponiveis(estado.data);
+        }
+      });
+
+      // ---- Passo 4: Horários disponíveis (dependem do cabeleireiro escolhido) ----
+      async function carregarHorariosDisponiveis(data) {
+        if (!estado.servicoSelecionado) {
+          el.gradeHorarios.innerHTML = '<div class="col-span-4 text-sm text-gray-400">Escolha um serviço primeiro.</div>';
+          return;
+        }
+        if (!estado.cabeleireiroSelecionado) {
+          el.gradeHorarios.innerHTML = '<div class="col-span-4 text-sm text-gray-400">Escolha um cabeleireiro primeiro.</div>';
+          return;
+        }
+        el.gradeHorarios.innerHTML = '<div class="col-span-4 text-sm text-gray-400">Carregando horários...</div>';
+        try {
+          const duracao = estado.servicoSelecionado.duracao_minutos;
+          const url = `${N8N_BASE_URL}/horarios-disponiveis?slug=${encodeURIComponent(EMPRESA_SLUG)}&data=${encodeURIComponent(data)}&duracao=${duracao}&cabeleireiro=${encodeURIComponent(estado.cabeleireiroSelecionado)}`;
+          const resp = await fetch(url);
+          const dados = await resp.json();
+          renderizarHorarios(dados.horarios_disponiveis || []);
+        } catch (err) {
+          el.gradeHorarios.innerHTML = '<div class="col-span-4 text-sm text-red-500">Erro ao buscar horários.</div>';
+        }
+      }
+
+      function renderizarHorarios(horarios) {
+        if (!horarios.length) {
+          el.gradeHorarios.innerHTML = '<div class="col-span-4 text-sm text-gray-400">Nenhum horário livre nesta data.</div>';
+          return;
+        }
+        el.gradeHorarios.innerHTML = '';
+        horarios.forEach(hora => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.textContent = hora;
+          btn.className = 'border-2 border-gray-200 rounded-lg py-2 text-sm font-medium hover:border-gold transition';
+          btn.addEventListener('click', () => {
+            estado.horaSelecionada = hora;
+            [...el.gradeHorarios.children].forEach(b => b.classList.remove('bg-black', 'text-white', 'border-black'));
+            btn.classList.add('bg-black', 'text-white', 'border-black');
+            atualizarResumo();
+          });
+          el.gradeHorarios.appendChild(btn);
+        });
+      }
+
+      function atualizarResumo() {
+        if (estado.servicoSelecionado && estado.data && estado.horaSelecionada) {
+          el.resumoSelecao.textContent =
+            `${estado.servicoSelecionado.nome} • ${estado.cabeleireiroSelecionado} • ${estado.data.split('-').reverse().join('/')} às ${estado.horaSelecionada} • ${formatarMoeda(estado.servicoSelecionado.preco)}`;
+          el.resumoSelecao.classList.remove('hidden');
+        } else {
+          el.resumoSelecao.classList.add('hidden');
+        }
+      }
+
+      // ---- Passo 4/5: Enviar agendamento ----
+      async function enviarAgendamento() {
+        const nome = el.inputNome.value.trim();
+        const whatsapp = el.inputWhatsapp.value.replace(/\D/g, '');
+
+        if (!estado.servicoSelecionado) return abrirModal({ sucesso: false, titulo: 'Falta escolher o serviço', mensagem: 'Selecione um serviço antes de confirmar.' });
+        if (!estado.cabeleireiroSelecionado) return abrirModal({ sucesso: false, titulo: 'Falta escolher o cabeleireiro', mensagem: 'Selecione o profissional antes de confirmar.' });
+        if (!estado.data) return abrirModal({ sucesso: false, titulo: 'Falta escolher a data', mensagem: 'Selecione a data do agendamento.' });
+        if (!estado.horaSelecionada) return abrirModal({ sucesso: false, titulo: 'Falta escolher o horário', mensagem: 'Selecione um horário disponível.' });
+        if (!nome) return abrirModal({ sucesso: false, titulo: 'Nome obrigatório', mensagem: 'Informe seu nome completo.' });
+        if (whatsapp.length < 10) return abrirModal({ sucesso: false, titulo: 'WhatsApp inválido', mensagem: 'Informe um número de WhatsApp válido com DDD.' });
+
+        const payload = {
+          action: 'criar_agendamento',
+          slug: EMPRESA_SLUG,
+          cliente: { nome, whatsapp: '55' + whatsapp.replace(/^55/, '') },
+          agendamento: {
+            servico: estado.servicoSelecionado.nome,
+            preco: estado.servicoSelecionado.preco,
+            duracao_minutos: estado.servicoSelecionado.duracao_minutos,
+            cabeleireiro: estado.cabeleireiroSelecionado,
+            data: estado.data,
+            hora: estado.horaSelecionada
+          }
+        };
+
+        el.btnConfirmar.disabled = true;
+        el.btnConfirmar.textContent = 'Enviando...';
+
+        try {
+          const resp = await fetch(`${N8N_BASE_URL}/criar-agendamento`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const dados = await resp.json().catch(() => ({}));
+
+          if (resp.status === 200 && dados.sucesso !== false) {
+            abrirModal({ sucesso: true, titulo: 'Agendamento confirmado!', mensagem: 'Você receberá uma mensagem de confirmação no WhatsApp em instantes.' });
+            // Reset básico do formulário
+            estado.horaSelecionada = null;
+            el.inputNome.value = '';
+            el.inputWhatsapp.value = '';
+            atualizarResumo();
+            carregarHorariosDisponiveis(estado.data);
+          } else {
+            abrirModal({ sucesso: false, titulo: 'Não foi possível agendar', mensagem: dados.mensagem || 'Tente novamente em instantes.' });
+          }
+        } catch (err) {
+          abrirModal({ sucesso: false, titulo: 'Erro de conexão', mensagem: 'Verifique sua internet e tente novamente.' });
+        } finally {
+          el.btnConfirmar.disabled = false;
+          el.btnConfirmar.textContent = 'Confirmar Agendamento';
+        }
+      }
+
+      el.btnConfirmar.addEventListener('click', enviarAgendamento);
+
+      carregarEmpresaInfo();
+      carregarServicos();
+    })();
+  </script>
+</body>
+
+</html>

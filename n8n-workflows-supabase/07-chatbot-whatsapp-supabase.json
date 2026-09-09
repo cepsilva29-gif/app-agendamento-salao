@@ -1,0 +1,786 @@
+{
+  "name": "07 - Chatbot WhatsApp (menu automatico) (Supabase)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-in",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "s07-webhook",
+      "name": "Webhook Evolution API",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "whatsapp-in-post-0001-supabase"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrai texto, remetente e a instancia Evolution (= a empresa que recebeu a mensagem) do payload\n// de evento 'messages.upsert' da Evolution API. Multi-tenant: cada empresa tem sua propria instancia,\n// e o payload sempre informa qual instancia recebeu o evento.\nconst body = $input.first().json.body || {};\nconst data = body.data || {};\nconst fromMe = !!(data.key && data.key.fromMe);\nconst remoteJid = (data.key && data.key.remoteJid) || '';\nconst numero = remoteJid.split('@')[0];\nconst msg = data.message || {};\nconst textoOriginal = msg.conversation || (msg.extendedTextMessage && msg.extendedTextMessage.text) || '';\n\nreturn [{\n  json: {\n    fromMe,\n    numero,\n    instance: body.instance || '',\n    texto: String(textoOriginal).trim().toUpperCase()\n  }\n}];"
+      },
+      "id": "s07-code-extrair",
+      "name": "Extrair Mensagem",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "empresas",
+        "returnAll": true,
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "evolution_instance",
+              "condition": "eq",
+              "keyValue": "={{ $json.instance }}"
+            },
+            {
+              "keyName": "ativo",
+              "condition": "eq",
+              "keyValue": "true"
+            }
+          ]
+        },
+        "matchType": "allFilters"
+      },
+      "id": "s07-resolver-empresa",
+      "name": "Resolver Empresa Por Instance",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        440,
+        300
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SUPABASE_CREDENTIAL",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const encontradas = $input.all().map(i => i.json).filter(row => row && row.id);\nif (encontradas.length === 0) return [{ json: { encontrada: false } }];\nconst e = encontradas[0];\nreturn [{ json: { encontrada: true, empresa_id: e.id, nome: e.nome, slug: e.slug } }];"
+      },
+      "id": "s07-checar-empresa",
+      "name": "Checar Empresa",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.encontrada }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "s07-empresa-if",
+      "name": "Empresa Encontrada?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('Extrair Mensagem').first().json.fromMe }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "false"
+              }
+            },
+            {
+              "id": "c2",
+              "leftValue": "={{ $('Extrair Mensagem').first().json.numero }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "s07-if-valido",
+      "name": "Mensagem de Cliente?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('Extrair Mensagem').first().json.texto }}",
+              "rightValue": "1",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "c2",
+              "leftValue": "={{ $('Extrair Mensagem').first().json.texto }}",
+              "rightValue": "AGENDAR",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "s07-if-agendar",
+      "name": "Opcao 1 - Agendar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('Extrair Mensagem').first().json.texto }}",
+              "rightValue": "2",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "c2",
+              "leftValue": "={{ $('Extrair Mensagem').first().json.texto }}",
+              "rightValue": "CANCELAR",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "s07-if-cancelar",
+      "name": "Opcao 2 - Cancelar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('Extrair Mensagem').first().json.texto }}",
+              "rightValue": "3",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "c2",
+              "leftValue": "={{ $('Extrair Mensagem').first().json.texto }}",
+              "rightValue": "STATUS",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "s07-if-status",
+      "name": "Opcao 3 - Status?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Opcao 1: reenvia o link do app para agendar (cada empresa tem seu proprio subdominio de agenda)\nconst dominio = $env.DOMAIN || 'seusalao.com.br';\nconst slug = $('Checar Empresa').first().json.slug;\nconst resposta = 'Para agendar, acesse: https://agenda-' + slug + '.' + dominio + '\\nEscolha o serviço, o cabeleireiro, a data e o horário direto por lá! 💈';\nreturn [{ json: { numero: $('Extrair Mensagem').first().json.numero, resposta } }];"
+      },
+      "id": "s07-code-resposta-agendar",
+      "name": "Montar Resposta Agendar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Nenhuma opcao reconhecida (primeiro contato ou mensagem fora do menu): mostra o menu numerado\nconst nomeSalao = $('Checar Empresa').first().json.nome || 'nosso salão';\nconst resposta = 'Olá! 👋 Sou o assistente virtual do ' + nomeSalao + '.\\n\\nEscolha uma opção e responda só com o número:\\n\\n*1* - Agendar um horário\\n*2* - Cancelar um agendamento\\n*3* - Ver o status do meu agendamento';\nreturn [{ json: { numero: $('Extrair Mensagem').first().json.numero, resposta } }];"
+      },
+      "id": "s07-code-resposta-menu",
+      "name": "Montar Resposta Menu",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "agendamentos",
+        "returnAll": true,
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "status",
+              "condition": "eq",
+              "keyValue": "Confirmado"
+            },
+            {
+              "keyName": "empresa_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Checar Empresa').first().json.empresa_id }}"
+            }
+          ]
+        },
+        "matchType": "allFilters"
+      },
+      "id": "s07-supabase-agendamentos",
+      "name": "Ler Agendamentos (Supabase)",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        260
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SUPABASE_CREDENTIAL",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// A query ao Supabase ja filtrou por status=Confirmado+empresa; aqui so localiza pelo numero de quem escreveu\nconst numeroCliente = $('Extrair Mensagem').first().json.numero;\nconst linhas = $input.all().map(i => i.json);\n\nfunction normaliza(tel) {\n  return String(tel || '').replace(/\\D/g, '').slice(-11);\n}\n\nconst alvo = normaliza(numeroCliente);\nconst confirmados = linhas.filter(r => normaliza(r.whatsapp) === alvo);\n\nif (confirmados.length === 0) {\n  return [{ json: { encontrado: false, motivo: 'nenhum', numero: numeroCliente } }];\n}\n\nif (confirmados.length > 1) {\n  const lista = confirmados\n    .sort((a, b) => String(a.data + a.hora).localeCompare(String(b.data + b.hora)))\n    .map(r => `- ${r.servico} em ${r.data} às ${r.hora}`)\n    .join('\\n');\n  return [{ json: { encontrado: false, motivo: 'multiplos', numero: numeroCliente, lista } }];\n}\n\nreturn [{ json: { ...confirmados[0], encontrado: true } }];"
+      },
+      "id": "s07-code-localizar",
+      "name": "Localizar Agendamento do Cliente",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.encontrado }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "s07-if-encontrado",
+      "name": "Agendamento Encontrado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "tableId": "agendamentos",
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
+            }
+          ]
+        },
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "Cancelado"
+            }
+          ]
+        }
+      },
+      "id": "s07-supabase-update",
+      "name": "Atualizar Status (Cancelamento) (Supabase)",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2420,
+        180
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SUPABASE_CREDENTIAL",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Confirma para o cliente que o cancelamento foi feito\nconst r = $('Localizar Agendamento do Cliente').item.json;\nconst resposta = `Pronto, ${r.nome}! Seu agendamento de ${r.servico} no dia ${r.data} às ${r.hora} foi cancelado. Se quiser reagendar, é só acessar o app do salão.`;\nreturn [{ json: { numero: r.whatsapp, resposta } }];"
+      },
+      "id": "s07-code-resposta-ok",
+      "name": "Montar Resposta Cancelamento OK",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Nao achou nenhum agendamento confirmado, ou achou mais de um -> pede para o cliente esclarecer\nconst dominio = $env.DOMAIN || 'seusalao.com.br';\nconst slug = $('Checar Empresa').first().json.slug;\nlet resposta;\n\nif ($json.motivo === 'multiplos') {\n  resposta = 'Você tem mais de um agendamento confirmado:\\n' + $json.lista + '\\n\\nAcesse https://agenda-' + slug + '.' + dominio + ' ou fale com a gente informando qual horário deseja cancelar.';\n} else {\n  resposta = 'Não encontrei nenhum agendamento confirmado com este número. Se preferir, acesse https://agenda-' + slug + '.' + dominio + ' para conferir seus horários.';\n}\n\nreturn [{ json: { numero: $json.numero, resposta } }];"
+      },
+      "id": "s07-code-resposta-nao-encontrado",
+      "name": "Montar Resposta Nao Encontrado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "agendamentos",
+        "returnAll": true,
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "status",
+              "condition": "neq",
+              "keyValue": "Cancelado"
+            },
+            {
+              "keyName": "empresa_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Checar Empresa').first().json.empresa_id }}"
+            }
+          ]
+        },
+        "matchType": "allFilters"
+      },
+      "id": "s07-supabase-status",
+      "name": "Ler Agendamentos Status (Supabase)",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1980,
+        380
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SUPABASE_CREDENTIAL",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Opcao 3: mostra os agendamentos ativos (Confirmado ou Finalizado) do numero que esta escrevendo\n// A query ao Supabase ja filtrou por status!=Cancelado+empresa; aqui so localiza pelo numero de quem escreveu\nconst numeroCliente = $('Extrair Mensagem').first().json.numero;\nconst linhas = $input.all().map(i => i.json);\n\nfunction normaliza(tel) {\n  return String(tel || '').replace(/\\D/g, '').slice(-11);\n}\n\nconst alvo = normaliza(numeroCliente);\nconst agendamentos = linhas\n  .filter(r => r && normaliza(r.whatsapp) === alvo)\n  .sort((a, b) => String(a.data + a.hora).localeCompare(String(b.data + b.hora)));\n\nif (agendamentos.length === 0) {\n  return [{ json: { numero: numeroCliente, resposta: 'Você não tem nenhum agendamento ativo no momento.\\n\\nDigite *1* para agendar um horário.' } }];\n}\n\nconst lista = agendamentos\n  .map(r => `💈 ${r.servico}\\n📅 ${r.data} às ${r.hora}\\n👤 ${r.cabeleireiro || '-'}\\n📌 Status: ${r.status}`)\n  .join('\\n\\n');\n\nreturn [{ json: { numero: numeroCliente, resposta: 'Seus agendamentos:\\n\\n' + lista } }];"
+      },
+      "id": "s07-code-status",
+      "name": "Buscar Status do Cliente",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.EVOLUTION_API_URL }}/message/sendText/{{ $('Extrair Mensagem').first().json.instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"number\": $json.numero, \"text\": $json.resposta } }}",
+        "options": {}
+      },
+      "id": "s07-http-responder",
+      "name": "Enviar Resposta WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2860,
+        260
+      ],
+      "continueOnFail": true
+    }
+  ],
+  "connections": {
+    "Webhook Evolution API": {
+      "main": [
+        [
+          {
+            "node": "Extrair Mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair Mensagem": {
+      "main": [
+        [
+          {
+            "node": "Resolver Empresa Por Instance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolver Empresa Por Instance": {
+      "main": [
+        [
+          {
+            "node": "Checar Empresa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checar Empresa": {
+      "main": [
+        [
+          {
+            "node": "Empresa Encontrada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Empresa Encontrada?": {
+      "main": [
+        [
+          {
+            "node": "Mensagem de Cliente?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Mensagem de Cliente?": {
+      "main": [
+        [
+          {
+            "node": "Opcao 1 - Agendar?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Opcao 1 - Agendar?": {
+      "main": [
+        [
+          {
+            "node": "Montar Resposta Agendar",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Opcao 2 - Cancelar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar Resposta Agendar": {
+      "main": [
+        [
+          {
+            "node": "Enviar Resposta WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Opcao 2 - Cancelar?": {
+      "main": [
+        [
+          {
+            "node": "Ler Agendamentos (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Opcao 3 - Status?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler Agendamentos (Supabase)": {
+      "main": [
+        [
+          {
+            "node": "Localizar Agendamento do Cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Localizar Agendamento do Cliente": {
+      "main": [
+        [
+          {
+            "node": "Agendamento Encontrado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agendamento Encontrado?": {
+      "main": [
+        [
+          {
+            "node": "Atualizar Status (Cancelamento) (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Montar Resposta Nao Encontrado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar Status (Cancelamento) (Supabase)": {
+      "main": [
+        [
+          {
+            "node": "Montar Resposta Cancelamento OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar Resposta Cancelamento OK": {
+      "main": [
+        [
+          {
+            "node": "Enviar Resposta WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar Resposta Nao Encontrado": {
+      "main": [
+        [
+          {
+            "node": "Enviar Resposta WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Opcao 3 - Status?": {
+      "main": [
+        [
+          {
+            "node": "Ler Agendamentos Status (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Montar Resposta Menu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler Agendamentos Status (Supabase)": {
+      "main": [
+        [
+          {
+            "node": "Buscar Status do Cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Status do Cliente": {
+      "main": [
+        [
+          {
+            "node": "Enviar Resposta WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar Resposta Menu": {
+      "main": [
+        [
+          {
+            "node": "Enviar Resposta WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

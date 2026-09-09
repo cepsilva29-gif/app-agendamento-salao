@@ -1,0 +1,124 @@
+version: "3.8"
+
+# Stack completa para a VPS Hostinger (KVM 2): n8n + Evolution API (WhatsApp) + Postgres/Redis
+# + Caddy como proxy reverso com HTTPS automático (Let's Encrypt) e servidor dos dois
+# frontends estáticos (cliente e admin).
+#
+# Uso:
+#   1. cp .env.example .env  (e preencha os valores)
+#   2. Aponte os registros DNS (tipo A) dos 4 subdomínios abaixo para o IP da VPS:
+#      n8n.$DOMAIN, evolution.$DOMAIN, agenda.$DOMAIN, admin.$DOMAIN
+#   3. docker compose up -d
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./frontend-agenda:/srv/frontend-agenda:ro
+      - ./frontend-admin:/srv/frontend-admin:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - DOMAIN=${DOMAIN}
+    depends_on:
+      - n8n
+      - evolution-api
+
+  n8n-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=n8n
+      - POSTGRES_PASSWORD=${N8N_DB_PASSWORD}
+      - POSTGRES_DB=n8n
+    volumes:
+      - n8n_db_data:/var/lib/postgresql/data
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:1.123.25
+    restart: unless-stopped
+    environment:
+      - N8N_HOST=n8n.${DOMAIN}
+      - N8N_PROTOCOL=https
+      - N8N_PORT=5678
+      - WEBHOOK_URL=https://n8n.${DOMAIN}/
+      - N8N_EDITOR_BASE_URL=https://n8n.${DOMAIN}/
+      - GENERIC_TIMEZONE=${TIMEZONE}
+      - TZ=${TIMEZONE}
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD}
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=n8n-db
+      - DB_POSTGRESDB_DATABASE=n8n
+      - DB_POSTGRESDB_USER=n8n
+      - DB_POSTGRESDB_PASSWORD=${N8N_DB_PASSWORD}
+      # Variáveis usadas DENTRO dos workflows (nós Code/HTTP Request via $env.*)
+      - GOOGLE_SHEET_ID=${GOOGLE_SHEET_ID}
+      - EVOLUTION_API_URL=http://evolution-api:8080
+      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
+      - EVOLUTION_INSTANCE=${EVOLUTION_INSTANCE}
+      - SALON_ADMIN_WHATSAPP=${SALON_ADMIN_WHATSAPP}
+      - SALON_NAME=${SALON_NAME}
+      # Usadas pelos workflows de n8n-workflows-supabase/ (multi-tenant, RLS) — sem efeito nos
+      # workflows de n8n-workflows/ (Google Sheets). Ver supabase/schema.sql e docs/deploy-easypanel.md.
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      - n8n-db
+
+  evolution-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=evolution
+      - POSTGRES_PASSWORD=${EVOLUTION_DB_PASSWORD}
+      - POSTGRES_DB=evolution
+    volumes:
+      - evolution_db_data:/var/lib/postgresql/data
+
+  evolution-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - evolution_redis_data:/data
+
+  evolution-api:
+    image: evoapicloud/evolution-api:latest
+    restart: unless-stopped
+    environment:
+      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY}
+      - AUTHENTICATION_TYPE=apikey
+      - DATABASE_ENABLED=true
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_CONNECTION_URI=postgresql://evolution:${EVOLUTION_DB_PASSWORD}@evolution-db:5432/evolution
+      - CACHE_REDIS_ENABLED=true
+      - CACHE_REDIS_URI=redis://evolution-redis:6379
+      - CACHE_REDIS_SAVE_INSTANCES=true
+      - WEBHOOK_GLOBAL_URL=https://n8n.${DOMAIN}/webhook/whatsapp-in
+      - WEBHOOK_GLOBAL_ENABLED=true
+      - WEBHOOK_EVENTS_MESSAGES_UPSERT=true
+      - TZ=${TIMEZONE}
+    volumes:
+      - evolution_instances:/evolution/instances
+    depends_on:
+      - evolution-db
+      - evolution-redis
+
+volumes:
+  caddy_data:
+  caddy_config:
+  n8n_data:
+  n8n_db_data:
+  evolution_db_data:
+  evolution_redis_data:
+  evolution_instances:

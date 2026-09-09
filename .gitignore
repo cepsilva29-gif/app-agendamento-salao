@@ -1,0 +1,5 @@
+.env
+evolution.env
+easypanel/app_agendamento.env
+node_modules/
+.claude/

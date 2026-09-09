@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Painel do Salão</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1115;
+    }
+
+    .gold {
+      color: #c9a24b;
+    }
+
+    .bg-gold {
+      background-color: #c9a24b;
+    }
+
+    .card {
+      background: #181b21;
+      border: 1px solid #262b33;
+    }
+  </style>
+</head>
+
+<body class="min-h-screen text-gray-100">
+
+  <script>
+    // Edite aqui a URL base dos webhooks do n8n (sem barra no final).
+    // Detecta automaticamente ambiente local (127.0.0.1/localhost/file://) vs produção.
+    const IS_LOCAL = location.protocol === "file:" || ["localhost", "127.0.0.1"].includes(location.hostname);
+    const N8N_BASE_URL = IS_LOCAL
+      ? "http://127.0.0.1:5678/webhook"
+      : "https://n8n.engenhariadedadosn8n.shop/webhook";
+    // Credenciais públicas do projeto Supabase (chave anon — segura para expor no browser,
+    // mesmo nível de exposição que N8N_BASE_URL acima; o isolamento entre empresas vem do RLS
+    // no banco, não do sigilo desta chave). Edite por instalação.
+    const SUPABASE_URL = "https://owggufkpmwqfnlcyndoj.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93Z2d1ZmtwbXdxZm5sY3luZG9qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyODMyOTYsImV4cCI6MjEwMzg1OTI5Nn0.eW03OBDX1gnLDAYWfLwl8h3LigWqsDLkjb52SxayuMs";
+    // Nome do salão e lista de cabeleireiros não são mais hardcoded aqui — vêm de
+    // /empresa-info depois do login (ver carregarEmpresaInfo()), resolvidos pelo RLS a partir
+    // do usuário autenticado.
+  </script>
+
+  <!-- Login / cadastro (mostrado até haver sessão Supabase válida) -->
+  <div id="authOverlay" class="min-h-screen flex items-center justify-center px-5 py-8">
+    <div class="card rounded-2xl p-6 w-full max-w-sm">
+      <h1 class="text-xl font-bold mb-1">Painel do Salão</h1>
+      <p class="text-sm text-gray-400 mb-6">Entre com sua conta ou cadastre seu salão.</p>
+
+      <div class="flex mb-5 rounded-lg overflow-hidden border border-[#262b33]">
+        <button id="tabLogin" type="button" class="flex-1 py-2 text-sm font-semibold bg-gold text-black">Entrar</button>
+        <button id="tabCadastro" type="button" class="flex-1 py-2 text-sm font-semibold text-gray-300">Cadastrar
+          salão</button>
+      </div>
+
+      <form id="formLogin" class="space-y-3">
+        <input type="email" id="loginEmail" required placeholder="E-mail" autocomplete="username"
+          class="w-full bg-[#0f1115] border border-[#262b33] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold">
+        <input type="password" id="loginSenha" required placeholder="Senha" autocomplete="current-password"
+          class="w-full bg-[#0f1115] border border-[#262b33] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold">
+        <button type="submit" id="btnLogin"
+          class="w-full bg-gold text-black text-sm font-semibold py-2.5 rounded-lg disabled:opacity-40">Entrar</button>
+        <p id="loginErro" class="text-xs text-red-400 hidden"></p>
+      </form>
+
+      <form id="formCadastro" class="space-y-3 hidden">
+        <input type="text" id="cadastroNomeEmpresa" required placeholder="Nome do salão"
+          class="w-full bg-[#0f1115] border border-[#262b33] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold">
+        <input type="text" id="cadastroSlug" required placeholder="Identificador único (ex: salao-da-ana)"
+          pattern="[a-z0-9]+(-[a-z0-9]+)*"
+          title="Somente letras minúsculas, números e hífen"
+          class="w-full bg-[#0f1115] border border-[#262b33] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold">
+        <input type="text" id="cadastroWhatsapp" required placeholder="WhatsApp do salão (só dígitos, com DDI)"
+          class="w-full bg-[#0f1115] border border-[#262b33] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold">
+        <input type="text" id="cadastroCabeleireiros" placeholder="Cabeleireiros, separados por vírgula (opcional)"
+          class="w-full bg-[#0f1115] border border-[#262b33] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold">
+        <input type="email" id="cadastroEmail" required placeholder="E-mail" autocomplete="username"
+          class="w-full bg-[#0f1115] border border-[#262b33] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold">
+        <input type="password" id="cadastroSenha" required minlength="6" placeholder="Senha (mín. 6 caracteres)"
+          autocomplete="new-password"
+          class="w-full bg-[#0f1115] border border-[#262b33] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold">
+        <button type="submit" id="btnCadastro"
+          class="w-full bg-gold text-black text-sm font-semibold py-2.5 rounded-lg disabled:opacity-40">Criar
+          conta</button>
+        <p id="cadastroErro" class="text-xs text-red-400 hidden"></p>
+        <p id="cadastroSucesso" class="text-xs text-green-400 hidden"></p>
+      </form>
+    </div>
+  </div>
+
+  <div id="dashboardApp" class="max-w-7xl mx-auto px-5 py-8 hidden">
+
+    <header class="flex flex-wrap items-center justify-between gap-4 mb-8">
+      <div>
+        <h1 class="text-2xl font-bold" id="nomeSalaoHeader">Painel</h1>
+        <p class="text-sm text-gray-400">Painel de administração</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <input type="date" id="inputData"
+          class="bg-[#181b21] border border-[#262b33] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold">
+        <button id="btnAtualizar"
+          class="bg-gold text-black text-sm font-semibold px-4 py-2 rounded-lg">Atualizar</button>
+        <button id="btnSair"
+          class="border border-[#262b33] text-sm font-semibold px-4 py-2 rounded-lg text-gray-300">Sair</button>
+      </div>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6 items-start">
+
+      <div class="min-w-0">
+        <!-- Cards de resumo -->
+        <section class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <div class="card rounded-xl p-5">
+            <p class="text-xs text-gray-400 uppercase tracking-wide mb-1">Agendamentos hoje</p>
+            <p class="text-3xl font-bold" id="statTotal">–</p>
+          </div>
+          <div class="card rounded-xl p-5">
+            <p class="text-xs text-gray-400 uppercase tracking-wide mb-1">Faturamento estimado</p>
+            <p class="text-3xl font-bold gold" id="statFaturamento">–</p>
+          </div>
+          <div class="card rounded-xl p-5">
+            <p class="text-xs text-gray-400 uppercase tracking-wide mb-1">Cancelados</p>
+            <p class="text-3xl font-bold text-red-400" id="statCancelados">–</p>
+          </div>
+        </section>
+
+        <!-- Lista de agendamentos -->
+        <section class="card rounded-xl overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-[#1f232b] text-gray-400 uppercase text-xs">
+                <tr>
+                  <th class="text-left px-4 py-3">Hora</th>
+                  <th class="text-left px-4 py-3">Cliente</th>
+                  <th class="text-left px-4 py-3">WhatsApp</th>
+                  <th class="text-left px-4 py-3">Serviço</th>
+                  <th class="text-left px-4 py-3">Cabeleireiro</th>
+                  <th class="text-left px-4 py-3">Status</th>
+                  <th class="text-left px-4 py-3">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="corpoTabela">
+                <tr>
+                  <td colspan="7" class="text-center text-gray-500 py-8">Carregando...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <!-- Ranking de cabeleireiros + Fechamento de agenda -->
+      <aside class="space-y-6 lg:sticky lg:top-8">
+        <div class="card rounded-xl p-5">
+          <h2 class="text-xs text-gray-400 uppercase tracking-wide mb-4">Ranking de cabeleireiros</h2>
+          <div id="rankingCabeleireiros" class="space-y-3">
+            <p class="text-sm text-gray-500">Carregando...</p>
+          </div>
+        </div>
+
+        <div class="card rounded-xl p-5">
+          <h2 class="text-xs text-gray-400 uppercase tracking-wide mb-4">Fechar agenda de um cabeleireiro</h2>
+          <form id="formBloqueio" class="space-y-3">
+            <select id="bloqueioCabeleireiro" required
+              class="w-full bg-[#0f1115] border border-[#262b33] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold">
+              <option value="">Selecione o cabeleireiro...</option>
+            </select>
+            <input type="date" id="bloqueioData" required
+              class="w-full bg-[#0f1115] border border-[#262b33] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold">
+            <label class="flex items-center gap-2 text-sm text-gray-300">
+              <input type="checkbox" id="bloqueioDiaInteiro" checked class="accent-gold">
+              Dia inteiro
+            </label>
+            <div id="bloqueioHorarios" class="grid grid-cols-2 gap-2 hidden">
+              <input type="time" id="bloqueioHoraInicio"
+                class="w-full bg-[#0f1115] border border-[#262b33] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold">
+              <input type="time" id="bloqueioHoraFim"
+                class="w-full bg-[#0f1115] border border-[#262b33] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold">
+            </div>
+            <input type="text" id="bloqueioMotivo" placeholder="Motivo (opcional)"
+              class="w-full bg-[#0f1115] border border-[#262b33] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold">
+            <button type="submit" id="btnCriarBloqueio"
+              class="w-full bg-gold text-black text-sm font-semibold py-2.5 rounded-lg disabled:opacity-40">Fechar
+              agenda</button>
+            <p id="bloqueioErro" class="text-xs text-red-400 hidden"></p>
+          </form>
+
+          <div class="mt-5 pt-4 border-t border-[#262b33]">
+            <h3 class="text-xs text-gray-500 uppercase tracking-wide mb-3">Bloqueios ativos</h3>
+            <div id="listaBloqueios" class="space-y-2">
+              <p class="text-sm text-gray-500">Carregando...</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card rounded-xl p-5">
+          <h2 class="text-xs text-gray-400 uppercase tracking-wide mb-4">Serviços</h2>
+          <form id="formServico" class="space-y-3">
+            <input type="text" id="servicoNome" required placeholder="Nome do serviço"
+              class="w-full bg-[#0f1115] border border-[#262b33] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold">
+            <div class="grid grid-cols-2 gap-2">
+              <input type="number" id="servicoPreco" required min="0.01" step="0.01" placeholder="Preço (R$)"
+                class="w-full bg-[#0f1115] border border-[#262b33] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold">
+              <input type="number" id="servicoDuracao" required min="1" step="1" placeholder="Duração (min)"
+                class="w-full bg-[#0f1115] border border-[#262b33] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold">
+            </div>
+            <button type="submit" id="btnCriarServico"
+              class="w-full bg-gold text-black text-sm font-semibold py-2.5 rounded-lg disabled:opacity-40">Adicionar
+              serviço</button>
+            <p id="servicoErro" class="text-xs text-red-400 hidden"></p>
+          </form>
+
+          <div class="mt-5 pt-4 border-t border-[#262b33]">
+            <h3 class="text-xs text-gray-500 uppercase tracking-wide mb-3">Catálogo</h3>
+            <div id="listaServicos" class="space-y-2">
+              <p class="text-sm text-gray-500">Carregando...</p>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+    </div>
+
+  </div>
+
+  <!-- /#dashboardApp -->
+
+  <!-- Modal confirmação -->
+  <div id="modalOverlay" class="fixed inset-0 bg-black/70 hidden items-center justify-center px-6 z-50">
+    <div class="card rounded-2xl p-6 max-w-sm w-full text-center">
+      <p id="modalMensagem" class="text-sm text-gray-200 mb-5"></p>
+      <div class="flex gap-3">
+        <button id="modalCancelarBtn" class="flex-1 border border-[#262b33] py-2.5 rounded-lg text-sm">Voltar</button>
+        <button id="modalConfirmarBtn"
+          class="flex-1 bg-red-500 text-white py-2.5 rounded-lg text-sm font-semibold">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      let cabeleireiros = [];
+
+      const authEl = {
+        overlay: document.getElementById('authOverlay'),
+        dashboard: document.getElementById('dashboardApp'),
+        tabLogin: document.getElementById('tabLogin'),
+        tabCadastro: document.getElementById('tabCadastro'),
+        formLogin: document.getElementById('formLogin'),
+        formCadastro: document.getElementById('formCadastro'),
+        loginEmail: document.getElementById('loginEmail'),
+        loginSenha: document.getElementById('loginSenha'),
+        btnLogin: document.getElementById('btnLogin'),
+        loginErro: document.getElementById('loginErro'),
+        cadastroNomeEmpresa: document.getElementById('cadastroNomeEmpresa'),
+        cadastroSlug: document.getElementById('cadastroSlug'),
+        cadastroWhatsapp: document.getElementById('cadastroWhatsapp'),
+        cadastroCabeleireiros: document.getElementById('cadastroCabeleireiros'),
+        cadastroEmail: document.getElementById('cadastroEmail'),
+        cadastroSenha: document.getElementById('cadastroSenha'),
+        btnCadastro: document.getElementById('btnCadastro'),
+        cadastroErro: document.getElementById('cadastroErro'),
+        cadastroSucesso: document.getElementById('cadastroSucesso'),
+        btnSair: document.getElementById('btnSair')
+      };
+
+      function mostrarAba(aba) {
+        const ehLogin = aba === 'login';
+        authEl.formLogin.classList.toggle('hidden', !ehLogin);
+        authEl.formCadastro.classList.toggle('hidden', ehLogin);
+        authEl.tabLogin.classList.toggle('bg-gold', ehLogin);
+        authEl.tabLogin.classList.toggle('text-black', ehLogin);
+        authEl.tabLogin.classList.toggle('text-gray-300', !ehLogin);
+        authEl.tabCadastro.classList.toggle('bg-gold', !ehLogin);
+        authEl.tabCadastro.classList.toggle('text-black', !ehLogin);
+        authEl.tabCadastro.classList.toggle('text-gray-300', ehLogin);
+      }
+      authEl.tabLogin.addEventListener('click', () => mostrarAba('login'));
+      authEl.tabCadastro.addEventListener('click', () => mostrarAba('cadastro'));
+
+      authEl.formLogin.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        authEl.loginErro.classList.add('hidden');
+        authEl.btnLogin.disabled = true;
+        authEl.btnLogin.textContent = 'Entrando...';
+        const { error } = await supabase.auth.signInWithPassword({
+          email: authEl.loginEmail.value.trim(),
+          password: authEl.loginSenha.value
+        });
+        authEl.btnLogin.disabled = false;
+        authEl.btnLogin.textContent = 'Entrar';
+        if (error) {
+          authEl.loginErro.textContent = 'E-mail ou senha inválidos.';
+          authEl.loginErro.classList.remove('hidden');
+        }
+        // sucesso: onAuthStateChange cuida de mostrar o dashboard.
+      });
+
+      authEl.formCadastro.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        authEl.cadastroErro.classList.add('hidden');
+        authEl.cadastroSucesso.classList.add('hidden');
+        authEl.btnCadastro.disabled = true;
+        authEl.btnCadastro.textContent = 'Criando...';
+
+        const listaCabeleireiros = authEl.cadastroCabeleireiros.value
+          .split(',').map(s => s.trim()).filter(Boolean);
+
+        const { data, error } = await supabase.auth.signUp({
+          email: authEl.cadastroEmail.value.trim(),
+          password: authEl.cadastroSenha.value,
+          options: {
+            data: {
+              slug: authEl.cadastroSlug.value.trim().toLowerCase(),
+              nome_empresa: authEl.cadastroNomeEmpresa.value.trim(),
+              whatsapp_admin: authEl.cadastroWhatsapp.value.trim(),
+              cabeleireiros: listaCabeleireiros
+            }
+          }
+        });
+
+        authEl.btnCadastro.disabled = false;
+        authEl.btnCadastro.textContent = 'Criar conta';
+
+        if (error) {
+          authEl.cadastroErro.textContent = error.message.includes('already registered')
+            ? 'Este e-mail já está cadastrado.'
+            : (error.message || 'Não foi possível criar a conta.');
+          authEl.cadastroErro.classList.remove('hidden');
+          return;
+        }
+
+        if (data.session) {
+          // Confirmação de e-mail desativada no projeto: já loga direto.
+          return;
+        }
+        authEl.cadastroSucesso.textContent = 'Conta criada! Verifique seu e-mail para confirmar antes de entrar.';
+        authEl.cadastroSucesso.classList.remove('hidden');
+        authEl.formCadastro.reset();
+        mostrarAba('login');
+      });
+
+      authEl.btnSair.addEventListener('click', () => supabase.auth.signOut());
+
+      async function fetchAutenticado(url, options = {}) {
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers = Object.assign({}, options.headers, {
+          Authorization: 'Bearer ' + (session ? session.access_token : '')
+        });
+        return fetch(url, Object.assign({}, options, { headers }));
+      }
+
+      async function carregarEmpresaInfo() {
+        try {
+          const resp = await fetchAutenticado(`${N8N_BASE_URL}/empresa-info`);
+          const dados = await resp.json();
+          document.getElementById('nomeSalaoHeader').textContent = dados.nome || 'Painel';
+          cabeleireiros = dados.cabeleireiros || [];
+          popularSelectCabeleireiro();
+        } catch (err) {
+          document.getElementById('nomeSalaoHeader').textContent = 'Painel';
+        }
+      }
+
+      supabase.auth.onAuthStateChange((_event, session) => {
+        if (session) {
+          authEl.overlay.classList.add('hidden');
+          authEl.dashboard.classList.remove('hidden');
+          carregarEmpresaInfo().then(() => {
+            carregarBloqueios();
+            carregarAgendamentos();
+            carregarServicos();
+          });
+        } else {
+          authEl.dashboard.classList.add('hidden');
+          authEl.overlay.classList.remove('hidden');
+        }
+      });
+
+      const el = {
+        inputData: document.getElementById('inputData'),
+        btnAtualizar: document.getElementById('btnAtualizar'),
+        statTotal: document.getElementById('statTotal'),
+        statFaturamento: document.getElementById('statFaturamento'),
+        statCancelados: document.getElementById('statCancelados'),
+        corpoTabela: document.getElementById('corpoTabela'),
+        rankingCabeleireiros: document.getElementById('rankingCabeleireiros'),
+        modalOverlay: document.getElementById('modalOverlay'),
+        modalMensagem: document.getElementById('modalMensagem'),
+        modalCancelarBtn: document.getElementById('modalCancelarBtn'),
+        modalConfirmarBtn: document.getElementById('modalConfirmarBtn'),
+        formBloqueio: document.getElementById('formBloqueio'),
+        bloqueioCabeleireiro: document.getElementById('bloqueioCabeleireiro'),
+        bloqueioData: document.getElementById('bloqueioData'),
+        bloqueioDiaInteiro: document.getElementById('bloqueioDiaInteiro'),
+        bloqueioHorarios: document.getElementById('bloqueioHorarios'),
+        bloqueioHoraInicio: document.getElementById('bloqueioHoraInicio'),
+        bloqueioHoraFim: document.getElementById('bloqueioHoraFim'),
+        bloqueioMotivo: document.getElementById('bloqueioMotivo'),
+        btnCriarBloqueio: document.getElementById('btnCriarBloqueio'),
+        bloqueioErro: document.getElementById('bloqueioErro'),
+        listaBloqueios: document.getElementById('listaBloqueios'),
+        formServico: document.getElementById('formServico'),
+        servicoNome: document.getElementById('servicoNome'),
+        servicoPreco: document.getElementById('servicoPreco'),
+        servicoDuracao: document.getElementById('servicoDuracao'),
+        btnCriarServico: document.getElementById('btnCriarServico'),
+        servicoErro: document.getElementById('servicoErro'),
+        listaServicos: document.getElementById('listaServicos')
+      };
+
+      el.inputData.value = new Date().toISOString().slice(0, 10);
+
+      function formatarMoeda(v) {
+        return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      }
+
+      function corStatus(status) {
+        if (status === 'Finalizado') return 'bg-green-500/20 text-green-400';
+        if (status === 'Cancelado') return 'bg-red-500/20 text-red-400';
+        return 'bg-yellow-500/20 text-yellow-400';
+      }
+
+      async function carregarAgendamentos() {
+        el.corpoTabela.innerHTML = '<tr><td colspan="7" class="text-center text-gray-500 py-8">Carregando...</td></tr>';
+        try {
+          const data = el.inputData.value;
+          const resp = await fetchAutenticado(`${N8N_BASE_URL}/agendamentos?data=${encodeURIComponent(data)}`);
+          const dados = await resp.json();
+
+          el.statTotal.textContent = dados.resumo?.total_agendamentos ?? 0;
+          el.statFaturamento.textContent = formatarMoeda(dados.resumo?.faturamento_estimado);
+          el.statCancelados.textContent = dados.resumo?.cancelados ?? 0;
+
+          renderizarTabela(dados.agendamentos || []);
+          renderizarRanking(dados.agendamentos || []);
+        } catch (err) {
+          el.corpoTabela.innerHTML = '<tr><td colspan="7" class="text-center text-red-400 py-8">Erro ao carregar agendamentos.</td></tr>';
+          el.rankingCabeleireiros.innerHTML = '<p class="text-sm text-red-400">Erro ao carregar ranking.</p>';
+        }
+      }
+
+      function renderizarRanking(agendamentos) {
+        const porCabeleireiro = {};
+
+        agendamentos.forEach(ag => {
+          const nome = ag.cabeleireiro || 'Sem cabeleireiro';
+          if (!porCabeleireiro[nome]) {
+            porCabeleireiro[nome] = { nome, confirmados: 0, finalizados: 0, valor: 0 };
+          }
+          if (ag.status === 'Confirmado') porCabeleireiro[nome].confirmados++;
+          if (ag.status === 'Finalizado') porCabeleireiro[nome].finalizados++;
+          if (ag.status === 'Confirmado' || ag.status === 'Finalizado') {
+            porCabeleireiro[nome].valor += Number(ag.preco || 0);
+          }
+        });
+
+        const ranking = Object.values(porCabeleireiro)
+          .map(c => ({ ...c, total: c.confirmados + c.finalizados }))
+          .filter(c => c.total > 0)
+          .sort((a, b) => b.valor - a.valor);
+
+        if (!ranking.length) {
+          el.rankingCabeleireiros.innerHTML = '<p class="text-sm text-gray-500">Nenhum atendimento nesta data.</p>';
+          return;
+        }
+
+        const medalhas = ['🥇', '🥈', '🥉'];
+
+        function iconePosicao(i) {
+          if (medalhas[i]) return `<span class="text-lg leading-none">${medalhas[i]}</span>`;
+          if (i === 3) {
+            return `<span class="flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold text-white" style="background:#b87333">4</span>`;
+          }
+          return `<span class="text-xs text-gray-500 font-bold">#${i + 1}</span>`;
+        }
+
+        el.rankingCabeleireiros.innerHTML = ranking.map((c, i) => `
+          <div class="flex flex-col gap-2.5 pb-3 border-b border-[#262b33] last:border-0 last:pb-0">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-sm font-medium flex items-center gap-2 min-w-0">
+                <span class="shrink-0 w-5 flex items-center justify-center">${iconePosicao(i)}</span>
+                <span class="truncate">${c.nome}</span>
+              </span>
+              <span class="text-sm font-bold gold shrink-0">${formatarMoeda(c.valor)}</span>
+            </div>
+            <div class="grid grid-cols-3 divide-x divide-[#262b33] rounded-lg bg-[#0f1115] overflow-hidden">
+              <div class="px-1 py-1.5 text-center">
+                <p class="text-[10px] text-gray-500 uppercase tracking-wide">Atend.</p>
+                <p class="text-sm font-semibold text-gray-200">${c.total}</p>
+              </div>
+              <div class="px-1 py-1.5 text-center">
+                <p class="text-[10px] text-gray-500 uppercase tracking-wide">Confirm.</p>
+                <p class="text-sm font-semibold text-yellow-400">${c.confirmados}</p>
+              </div>
+              <div class="px-1 py-1.5 text-center">
+                <p class="text-[10px] text-gray-500 uppercase tracking-wide">Finaliz.</p>
+                <p class="text-sm font-semibold text-green-400">${c.finalizados}</p>
+              </div>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      function renderizarTabela(agendamentos) {
+        if (!agendamentos.length) {
+          el.corpoTabela.innerHTML = '<tr><td colspan="7" class="text-center text-gray-500 py-8">Nenhum agendamento nesta data.</td></tr>';
+          return;
+        }
+
+        el.corpoTabela.innerHTML = '';
+        agendamentos.forEach(ag => {
+          const tr = document.createElement('tr');
+          tr.className = 'border-t border-[#262b33]';
+          const linkWhats = `https://wa.me/${ag.whatsapp}`;
+          const podeAgir = ag.status === 'Confirmado';
+
+          tr.innerHTML = `
+        <td class="px-4 py-3 font-medium">${ag.hora}</td>
+        <td class="px-4 py-3">${ag.nome}</td>
+        <td class="px-4 py-3">
+          <a href="${linkWhats}" target="_blank" rel="noopener" class="text-green-400 hover:underline">${ag.whatsapp}</a>
+        </td>
+        <td class="px-4 py-3">${ag.servico}<br><span class="text-xs text-gray-500">${formatarMoeda(ag.preco)}</span></td>
+        <td class="px-4 py-3">${ag.cabeleireiro || '—'}</td>
+        <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${corStatus(ag.status)}">${ag.status}</span></td>
+        <td class="px-4 py-3 text-right whitespace-nowrap">
+          ${podeAgir ? `
+            <button class="btnFinalizar text-xs bg-green-500/20 text-green-400 px-3 py-1.5 rounded-lg mr-2 hover:bg-green-500/30">Finalizado</button>
+            <button class="btnCancelar text-xs bg-red-500/20 text-red-400 px-3 py-1.5 rounded-lg hover:bg-red-500/30">Cancelar</button>
+          ` : '<span class="text-xs text-gray-600">—</span>'}
+        </td>
+      `;
+
+          if (podeAgir) {
+            tr.querySelector('.btnFinalizar').addEventListener('click', () => confirmarAcao(ag, 'finalizar'));
+            tr.querySelector('.btnCancelar').addEventListener('click', () => confirmarAcao(ag, 'cancelar'));
+          }
+
+          el.corpoTabela.appendChild(tr);
+        });
+      }
+
+      let acaoPendente = null;
+
+      function confirmarAcao(agendamento, tipo) {
+        acaoPendente = { agendamento, tipo };
+        el.modalMensagem.textContent = tipo === 'cancelar'
+          ? `Cancelar o agendamento de ${agendamento.nome} às ${agendamento.hora}?`
+          : `Marcar o agendamento de ${agendamento.nome} às ${agendamento.hora} como finalizado?`;
+        el.modalConfirmarBtn.textContent = tipo === 'cancelar' ? 'Cancelar agendamento' : 'Confirmar';
+        el.modalOverlay.classList.remove('hidden');
+        el.modalOverlay.classList.add('flex');
+      }
+
+      function fecharModal() {
+        acaoPendente = null;
+        el.modalOverlay.classList.add('hidden');
+        el.modalOverlay.classList.remove('flex');
+      }
+
+      el.modalCancelarBtn.addEventListener('click', fecharModal);
+
+      el.modalConfirmarBtn.addEventListener('click', async () => {
+        if (!acaoPendente) return;
+        const { agendamento, tipo } = acaoPendente;
+        const endpoint = tipo === 'cancelar' ? 'cancelar-agendamento' : 'finalizar-agendamento';
+
+        el.modalConfirmarBtn.disabled = true;
+        el.modalConfirmarBtn.textContent = 'Enviando...';
+
+        try {
+          await fetchAutenticado(`${N8N_BASE_URL}/${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: agendamento.id })
+          });
+        } catch (err) {
+          // segue mesmo assim para o usuario atualizar e conferir
+        } finally {
+          el.modalConfirmarBtn.disabled = false;
+          fecharModal();
+          carregarAgendamentos();
+        }
+      });
+
+      el.btnAtualizar.addEventListener('click', carregarAgendamentos);
+      el.inputData.addEventListener('change', carregarAgendamentos);
+
+      // ---- Fechamento de agenda por cabeleireiro ----
+      function popularSelectCabeleireiro() {
+        el.bloqueioCabeleireiro.innerHTML = '<option value="">Selecione o cabeleireiro...</option>' +
+          cabeleireiros.map(nome => `<option value="${nome}">${nome}</option>`).join('');
+      }
+
+      el.bloqueioDiaInteiro.addEventListener('change', () => {
+        el.bloqueioHorarios.classList.toggle('hidden', el.bloqueioDiaInteiro.checked);
+        el.bloqueioHoraInicio.required = !el.bloqueioDiaInteiro.checked;
+        el.bloqueioHoraFim.required = !el.bloqueioDiaInteiro.checked;
+      });
+
+      async function carregarBloqueios() {
+        el.listaBloqueios.innerHTML = '<p class="text-sm text-gray-500">Carregando...</p>';
+        try {
+          const resp = await fetchAutenticado(`${N8N_BASE_URL}/bloqueios`);
+          const dados = await resp.json();
+          renderizarBloqueios(dados.bloqueios || []);
+        } catch (err) {
+          el.listaBloqueios.innerHTML = '<p class="text-sm text-red-400">Erro ao carregar bloqueios.</p>';
+        }
+      }
+
+      function renderizarBloqueios(bloqueios) {
+        if (!bloqueios.length) {
+          el.listaBloqueios.innerHTML = '<p class="text-sm text-gray-500">Nenhum bloqueio ativo.</p>';
+          return;
+        }
+        el.listaBloqueios.innerHTML = '';
+        bloqueios.forEach(bq => {
+          const div = document.createElement('div');
+          div.className = 'flex items-center justify-between gap-2 bg-[#0f1115] rounded-lg px-3 py-2';
+          const dataFormatada = bq.data.split('-').reverse().join('/');
+          const periodo = bq.dia_inteiro ? 'Dia inteiro' : `${bq.hora_inicio}–${bq.hora_fim}`;
+          div.innerHTML = `
+            <div class="min-w-0">
+              <p class="text-sm font-medium truncate">${bq.cabeleireiro} • ${dataFormatada}</p>
+              <p class="text-xs text-gray-500 truncate">${periodo}${bq.motivo ? ' • ' + bq.motivo : ''}</p>
+            </div>
+            <button class="btnCancelarBloqueio text-xs bg-red-500/20 text-red-400 px-2.5 py-1.5 rounded-lg hover:bg-red-500/30 shrink-0">Cancelar</button>
+          `;
+          div.querySelector('.btnCancelarBloqueio').addEventListener('click', async () => {
+            try {
+              await fetchAutenticado(`${N8N_BASE_URL}/cancelar-bloqueio`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: bq.id })
+              });
+            } catch (err) {
+              // segue mesmo assim para o admin atualizar e conferir
+            } finally {
+              carregarBloqueios();
+            }
+          });
+          el.listaBloqueios.appendChild(div);
+        });
+      }
+
+      el.formBloqueio.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        el.bloqueioErro.classList.add('hidden');
+
+        const diaInteiro = el.bloqueioDiaInteiro.checked;
+        const payload = {
+          cabeleireiro: el.bloqueioCabeleireiro.value,
+          data: el.bloqueioData.value,
+          hora_inicio: diaInteiro ? '' : el.bloqueioHoraInicio.value,
+          hora_fim: diaInteiro ? '' : el.bloqueioHoraFim.value,
+          motivo: el.bloqueioMotivo.value.trim()
+        };
+
+        el.btnCriarBloqueio.disabled = true;
+        el.btnCriarBloqueio.textContent = 'Salvando...';
+
+        try {
+          const resp = await fetchAutenticado(`${N8N_BASE_URL}/criar-bloqueio`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const dados = await resp.json().catch(() => ({}));
+
+          if (resp.status === 200 && dados.sucesso !== false) {
+            el.formBloqueio.reset();
+            el.bloqueioDiaInteiro.checked = true;
+            el.bloqueioHorarios.classList.add('hidden');
+            carregarBloqueios();
+          } else {
+            el.bloqueioErro.textContent = dados.mensagem || 'Não foi possível criar o bloqueio.';
+            el.bloqueioErro.classList.remove('hidden');
+          }
+        } catch (err) {
+          el.bloqueioErro.textContent = 'Erro de conexão. Tente novamente.';
+          el.bloqueioErro.classList.remove('hidden');
+        } finally {
+          el.btnCriarBloqueio.disabled = false;
+          el.btnCriarBloqueio.textContent = 'Fechar agenda';
+        }
+      });
+
+      // ---- Serviços (catálogo) ----
+      async function carregarServicos() {
+        el.listaServicos.innerHTML = '<p class="text-sm text-gray-500">Carregando...</p>';
+        try {
+          const resp = await fetchAutenticado(`${N8N_BASE_URL}/servicos-admin`);
+          const dados = await resp.json();
+          renderizarServicos(dados.servicos || []);
+        } catch (err) {
+          el.listaServicos.innerHTML = '<p class="text-sm text-red-400">Erro ao carregar serviços.</p>';
+        }
+      }
+
+      function renderizarServicos(servicos) {
+        if (!servicos.length) {
+          el.listaServicos.innerHTML = '<p class="text-sm text-gray-500">Nenhum serviço cadastrado.</p>';
+          return;
+        }
+        el.listaServicos.innerHTML = '';
+        servicos.forEach(s => {
+          const div = document.createElement('div');
+          div.className = 'bg-[#0f1115] rounded-lg p-3 space-y-2' + (s.ativo ? '' : ' opacity-50');
+          div.innerHTML = `
+            <input type="text" class="w-full bg-transparent border-b border-[#262b33] text-sm font-medium pb-1 focus:outline-none focus:border-gold servico-nome" value="${s.nome}">
+            <div class="grid grid-cols-2 gap-2">
+              <input type="number" min="0.01" step="0.01" class="w-full bg-[#181b21] border border-[#262b33] rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-gold servico-preco" value="${s.preco}">
+              <input type="number" min="1" step="1" class="w-full bg-[#181b21] border border-[#262b33] rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-gold servico-duracao" value="${s.duracao_minutos}">
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <label class="flex items-center gap-1.5 text-xs text-gray-400">
+                <input type="checkbox" class="accent-gold servico-ativo" ${s.ativo ? 'checked' : ''}> Ativo
+              </label>
+              <button type="button" class="btnSalvarServico text-xs bg-gold text-black px-2.5 py-1.5 rounded-lg font-semibold">Salvar</button>
+            </div>
+          `;
+          const btn = div.querySelector('.btnSalvarServico');
+          btn.addEventListener('click', async () => {
+            const payload = {
+              id: s.id,
+              nome: div.querySelector('.servico-nome').value.trim(),
+              preco: Number(div.querySelector('.servico-preco').value),
+              duracao_minutos: Number(div.querySelector('.servico-duracao').value),
+              ativo: div.querySelector('.servico-ativo').checked
+            };
+            btn.disabled = true;
+            btn.textContent = 'Salvando...';
+            try {
+              await fetchAutenticado(`${N8N_BASE_URL}/atualizar-servico`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+              });
+            } catch (err) {
+              // segue mesmo assim para o admin atualizar e conferir
+            } finally {
+              carregarServicos();
+            }
+          });
+          el.listaServicos.appendChild(div);
+        });
+      }
+
+      el.formServico.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        el.servicoErro.classList.add('hidden');
+
+        const payload = {
+          nome: el.servicoNome.value.trim(),
+          preco: Number(el.servicoPreco.value),
+          duracao_minutos: Number(el.servicoDuracao.value)
+        };
+
+        el.btnCriarServico.disabled = true;
+        el.btnCriarServico.textContent = 'Salvando...';
+
+        try {
+          const resp = await fetchAutenticado(`${N8N_BASE_URL}/criar-servico`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const dados = await resp.json().catch(() => ({}));
+
+          if (resp.status === 200 && dados.sucesso !== false) {
+            el.formServico.reset();
+            carregarServicos();
+          } else {
+            el.servicoErro.textContent = dados.mensagem || 'Não foi possível criar o serviço.';
+            el.servicoErro.classList.remove('hidden');
+          }
+        } catch (err) {
+          el.servicoErro.textContent = 'Erro de conexão. Tente novamente.';
+          el.servicoErro.classList.remove('hidden');
+        } finally {
+          el.btnCriarServico.disabled = false;
+          el.btnCriarServico.textContent = 'Adicionar serviço';
+        }
+      });
+
+      // carregarEmpresaInfo/carregarBloqueios/carregarAgendamentos/carregarServicos rodam via
+      // supabase.auth.onAuthStateChange() acima, assim que houver sessão válida.
+      setInterval(() => {
+        if (!authEl.dashboard.classList.contains('hidden')) carregarAgendamentos();
+      }, 60000); // auto-atualiza a cada 1 minuto, só quando logado
+    })();
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,23 @@
+n8n.{$DOMAIN} {
+	reverse_proxy n8n:5678
+}
+
+evolution.{$DOMAIN} {
+	reverse_proxy evolution-api:8080
+}
+
+agenda.{$DOMAIN} {
+	root * /srv/frontend-agenda
+	file_server
+	encode gzip
+}
+
+admin.{$DOMAIN} {
+	root * /srv/frontend-admin
+	file_server
+	encode gzip
+	# Opcional: proteja o painel do dono do salão com login básico extra.
+	# basicauth {
+	# 	admin JDJhJDEwJC4uLnN1YXNlbmhhaGFzaGFkYS4uLg==
+	# }
+}

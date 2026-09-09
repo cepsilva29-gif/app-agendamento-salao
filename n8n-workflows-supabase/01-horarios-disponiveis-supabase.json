@@ -1,0 +1,337 @@
+{
+  "name": "01 - Horarios Disponiveis (Supabase)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "horarios-disponiveis",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "bf3909c2-b8af-4273-8781-396a1fb63b3c",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -440,
+        0
+      ],
+      "webhookId": "horarios-disponiveis-get-0001-supabase"
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "empresas",
+        "returnAll": true,
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "slug",
+              "condition": "eq",
+              "keyValue": "={{ $json.query.slug }}"
+            },
+            {
+              "keyName": "ativo",
+              "condition": "eq",
+              "keyValue": "true"
+            }
+          ]
+        },
+        "matchType": "allFilters"
+      },
+      "id": "s01-resolver-empresa",
+      "name": "Resolver Empresa",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -220,
+        0
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SUPABASE_CREDENTIAL",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const encontradas = $input.all().map(i => i.json).filter(row => row && row.id);\nif (encontradas.length === 0) return [{ json: { encontrada: false } }];\nreturn [{ json: { encontrada: true, empresa_id: encontradas[0].id } }];"
+      },
+      "id": "s01-checar-empresa",
+      "name": "Checar Empresa",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.encontrada }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "s01-empresa-if",
+      "name": "Empresa Encontrada?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "agendamentos",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "cabeleireiro",
+              "condition": "eq",
+              "keyValue": "={{ $('Webhook').first().json.query.cabeleireiro }}"
+            },
+            {
+              "keyName": "empresa_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Checar Empresa').first().json.empresa_id }}"
+            }
+          ]
+        },
+        "matchType": "allFilters"
+      },
+      "id": "0a0d361f-e650-4113-a186-60f767a7c61d",
+      "name": "Ler Agendamentos (Supabase)",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        460,
+        -80
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SUPABASE_CREDENTIAL",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "bloqueios",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "cabeleireiro",
+              "condition": "eq",
+              "keyValue": "={{ $('Webhook').first().json.query.cabeleireiro }}"
+            },
+            {
+              "keyName": "empresa_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Checar Empresa').first().json.empresa_id }}"
+            }
+          ]
+        },
+        "matchType": "allFilters"
+      },
+      "id": "0ebf5737-1827-49b3-adcf-519914bf86e1",
+      "name": "Ler Bloqueios (Supabase)",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        460,
+        80
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SUPABASE_CREDENTIAL",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---- Grade padrão por dia da semana (0=Domingo ... 6=Sábado) ----\n// Edite aqui se o salão mudar o horário de funcionamento.\nconst gradePorDia = {\n  0: [],\n  1: [\"09:00\",\"10:00\",\"11:00\",\"13:00\",\"14:00\",\"15:00\",\"16:00\",\"17:00\"],\n  2: [\"09:00\",\"10:00\",\"11:00\",\"13:00\",\"14:00\",\"15:00\",\"16:00\",\"17:00\"],\n  3: [\"09:00\",\"10:00\",\"11:00\",\"13:00\",\"14:00\",\"15:00\",\"16:00\",\"17:00\"],\n  4: [\"09:00\",\"10:00\",\"11:00\",\"13:00\",\"14:00\",\"15:00\",\"16:00\",\"17:00\"],\n  5: [\"09:00\",\"10:00\",\"11:00\",\"13:00\",\"14:00\",\"15:00\",\"16:00\",\"17:00\"],\n  6: [\"09:00\",\"10:00\",\"11:00\",\"13:00\",\"14:00\"],\n};\n\nconst query = $('Webhook').first().json.query || {};\nconst dataFiltro = query.data;\nconst duracaoSolicitada = Number(query.duracao) || 30;\nconst cabeleireiroFiltro = query.cabeleireiro;\n\nif (!dataFiltro) {\n  return [{ json: { erro: 'Parametro \"data\" (AAAA-MM-DD) e obrigatorio.' } }];\n}\nif (!cabeleireiroFiltro) {\n  return [{ json: { erro: 'Parametro \"cabeleireiro\" e obrigatorio.' } }];\n}\n\nconst [ano, mes, dia] = dataFiltro.split('-').map(Number);\nconst diaSemana = new Date(ano, mes - 1, dia).getDay();\nconst gradePadrao = gradePorDia[diaSemana] || [];\n\nconst toMinutos = (hhmm) => {\n  const [h, m] = hhmm.split(':').map(Number);\n  return h * 60 + m;\n};\n\n// Ja vem filtrado por cabeleireiro+empresa direto na query ao Supabase; aqui filtra data+status\nconst ocupados = $('Ler Agendamentos (Supabase)').all()\n  .map(item => item.json)\n  .filter(row => row && row.hora && row.data === dataFiltro && row.status !== 'Cancelado')\n  .map(row => {\n    const inicio = toMinutos(row.hora);\n    const duracao = Number(row.duracao_minutos) || 30;\n    return { inicio, fim: inicio + duracao };\n  });\n\n// Ja vem filtrado por cabeleireiro+empresa direto na query ao Supabase; aqui filtra data+status\nconst bloqueios = $('Ler Bloqueios (Supabase)').all()\n  .map(item => item.json)\n  .filter(row => row && row.data === dataFiltro && row.status === 'Ativo');\n\nconst bloqueioDiaInteiro = bloqueios.some(b => !b.hora_inicio && !b.hora_fim);\n\nconst bloqueiosParciais = bloqueios\n  .filter(b => b.hora_inicio && b.hora_fim)\n  .map(b => ({ inicio: toMinutos(b.hora_inicio), fim: toMinutos(b.hora_fim) }));\n\n// O sandbox do Code node do n8n roda sempre em UTC, ignorando TZ/GENERIC_TIMEZONE do container.\n// America/Sao_Paulo = UTC-3 fixo (sem horario de verao desde 2019), entao a conversao e manual aqui.\nconst agoraSP = new Date(Date.now() - 3 * 60 * 60 * 1000);\nconst ehHoje = agoraSP.getUTCFullYear() === ano && (agoraSP.getUTCMonth() + 1) === mes && agoraSP.getUTCDate() === dia;\nconst minutosAgora = agoraSP.getUTCHours() * 60 + agoraSP.getUTCMinutes();\n\n// Fecha o expediente 60min apos o ultimo horario da grade (aprox. p/ evitar estourar o fim do dia)\nconst fechamento = gradePadrao.length ? toMinutos(gradePadrao[gradePadrao.length - 1]) + 60 : 0;\n\nconst horariosLivres = bloqueioDiaInteiro ? [] : gradePadrao.filter(hora => {\n  const inicioSlot = toMinutos(hora);\n  const fimSlot = inicioSlot + duracaoSolicitada;\n\n  if (fimSlot > fechamento) return false;\n  if (ehHoje && inicioSlot <= minutosAgora) return false;\n\n  const temConflito = ocupados.some(o => o.inicio < fimSlot && o.fim > inicioSlot);\n  if (temConflito) return false;\n\n  const temBloqueio = bloqueiosParciais.some(b => b.inicio < fimSlot && b.fim > inicioSlot);\n  return !temBloqueio;\n});\n\nreturn [{\n  json: {\n    data: dataFiltro,\n    cabeleireiro: cabeleireiroFiltro,\n    duracao_minutos: duracaoSolicitada,\n    horarios_disponiveis: horariosLivres\n  }\n}];"
+      },
+      "id": "539839e3-2418-48a5-8b52-76ee5c75fb91",
+      "name": "Calcular Horarios Livres",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "bc918d1a-ba5a-4731-8ead-6d5f5be8ef43",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        900,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"sucesso\": false, \"mensagem\": \"Salao nao encontrado.\" } }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          },
+          "responseCode": 404
+        }
+      },
+      "id": "s01-respond-404",
+      "name": "Responder Empresa Nao Encontrada",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        200
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Resolver Empresa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolver Empresa": {
+      "main": [
+        [
+          {
+            "node": "Checar Empresa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checar Empresa": {
+      "main": [
+        [
+          {
+            "node": "Empresa Encontrada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Empresa Encontrada?": {
+      "main": [
+        [
+          {
+            "node": "Ler Agendamentos (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Empresa Nao Encontrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler Agendamentos (Supabase)": {
+      "main": [
+        [
+          {
+            "node": "Ler Bloqueios (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler Bloqueios (Supabase)": {
+      "main": [
+        [
+          {
+            "node": "Calcular Horarios Livres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calcular Horarios Livres": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "pinData": {}
+}

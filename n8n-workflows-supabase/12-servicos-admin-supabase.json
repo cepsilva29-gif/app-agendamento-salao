@@ -1,0 +1,600 @@
+{
+  "name": "12 - Servicos Admin (Supabase)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "servicos-admin",
+        "responseMode": "responseNode",
+        "options": { "allowedOrigins": "*" }
+      },
+      "id": "s12-webhook-listar",
+      "name": "Webhook Listar",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "servicos-admin-get-0001-supabase"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/auth/v1/user",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "={{ $json.headers.authorization }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "s12-auth-listar",
+      "name": "Autenticar (Listar)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 0],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 1 },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "s12-auth-if-listar",
+      "name": "Autenticado? (Listar)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/servicos",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "={{ $('Webhook Listar').first().json.headers.authorization }}" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "select", "value": "*" },
+            { "name": "order", "value": "nome.asc" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "s12-ler-servicos",
+      "name": "Ler Servicos (PostgREST)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, -80],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const servicos = $input.all()\n  .map(i => i.json)\n  .filter(row => row && row.id)\n  .map(row => ({\n    id: row.id,\n    nome: row.nome,\n    preco: Number(row.preco) || 0,\n    duracao_minutos: Number(row.duracao_minutos) || 30,\n    ativo: !!row.ativo\n  }));\nreturn [{ json: { servicos } }];"
+      },
+      "id": "s12-formatar-listar",
+      "name": "Formatar Servicos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, -80]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": { "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }] }
+        }
+      },
+      "id": "s12-responder-listar",
+      "name": "Responder Listar",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1100, -80]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"sucesso\": false, \"mensagem\": \"Nao autorizado.\" } }}",
+        "options": {
+          "responseHeaders": { "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }] },
+          "responseCode": 401
+        }
+      },
+      "id": "s12-401-listar",
+      "name": "Responder Nao Autorizado (Listar)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [660, 120]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "criar-servico",
+        "responseMode": "responseNode",
+        "options": { "allowedOrigins": "*" }
+      },
+      "id": "s12-webhook-criar",
+      "name": "Webhook Criar",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 360],
+      "webhookId": "criar-servico-post-0001-supabase"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/auth/v1/user",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "={{ $json.headers.authorization }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "s12-auth-criar",
+      "name": "Autenticar (Criar)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 360],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 1 },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "s12-auth-if-criar",
+      "name": "Autenticado? (Criar)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [440, 360]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Valida o payload recebido do painel admin\nconst body = $('Webhook Criar').first().json.body || {};\n\nconst erros = [];\nif (!body.nome || !String(body.nome).trim()) erros.push('nome');\nconst preco = Number(body.preco);\nif (!isFinite(preco) || preco <= 0) erros.push('preco');\nconst duracao = Number(body.duracao_minutos);\nif (!isFinite(duracao) || duracao <= 0) erros.push('duracao_minutos');\n\nif (erros.length) {\n  return [{ json: { valido: false, erro: 'Campos invalidos ou ausentes: ' + erros.join(', ') } }];\n}\n\nreturn [{\n  json: {\n    valido: true,\n    nome: String(body.nome).trim(),\n    preco,\n    duracao_minutos: duracao\n  }\n}];"
+      },
+      "id": "s12-validar-criar",
+      "name": "Validar Dados (Criar)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 280]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 1 },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.valido }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "s12-validos-if-criar",
+      "name": "Dados Validos? (Criar)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [880, 280]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/servicos",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "={{ $('Webhook Criar').first().json.headers.authorization }}" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"nome\": $json.nome, \"preco\": $json.preco, \"duracao_minutos\": $json.duracao_minutos, \"ativo\": true } }}",
+        "options": {}
+      },
+      "id": "s12-salvar-criar",
+      "name": "Salvar Servico (PostgREST)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1100, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"sucesso\": true, \"mensagem\": \"Servico criado.\" } }}",
+        "options": {
+          "responseHeaders": { "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }] }
+        }
+      },
+      "id": "s12-responder-criar",
+      "name": "Responder Sucesso (Criar)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1320, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"sucesso\": false, \"mensagem\": $json.erro } }}",
+        "options": {
+          "responseHeaders": { "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }] },
+          "responseCode": 400
+        }
+      },
+      "id": "s12-invalido-criar",
+      "name": "Responder Invalido (Criar)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 460]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"sucesso\": false, \"mensagem\": \"Nao autorizado.\" } }}",
+        "options": {
+          "responseHeaders": { "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }] },
+          "responseCode": 401
+        }
+      },
+      "id": "s12-401-criar",
+      "name": "Responder Nao Autorizado (Criar)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [440, 500]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "atualizar-servico",
+        "responseMode": "responseNode",
+        "options": { "allowedOrigins": "*" }
+      },
+      "id": "s12-webhook-atualizar",
+      "name": "Webhook Atualizar",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 760],
+      "webhookId": "atualizar-servico-post-0001-supabase"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/auth/v1/user",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "={{ $json.headers.authorization }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "s12-auth-atualizar",
+      "name": "Autenticar (Atualizar)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 760],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 1 },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "s12-auth-if-atualizar",
+      "name": "Autenticado? (Atualizar)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [440, 760]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Valida o payload recebido do painel admin (atualizacao completa da linha)\nconst body = $('Webhook Atualizar').first().json.body || {};\n\nconst erros = [];\nif (!body.id) erros.push('id');\nif (!body.nome || !String(body.nome).trim()) erros.push('nome');\nconst preco = Number(body.preco);\nif (!isFinite(preco) || preco <= 0) erros.push('preco');\nconst duracao = Number(body.duracao_minutos);\nif (!isFinite(duracao) || duracao <= 0) erros.push('duracao_minutos');\n\nif (erros.length) {\n  return [{ json: { valido: false, erro: 'Campos invalidos ou ausentes: ' + erros.join(', ') } }];\n}\n\nreturn [{\n  json: {\n    valido: true,\n    id: body.id,\n    nome: String(body.nome).trim(),\n    preco,\n    duracao_minutos: duracao,\n    ativo: body.ativo !== false\n  }\n}];"
+      },
+      "id": "s12-validar-atualizar",
+      "name": "Validar Dados (Atualizar)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 680]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 1 },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.valido }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "s12-validos-if-atualizar",
+      "name": "Dados Validos? (Atualizar)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [880, 680]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/servicos",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "={{ $('Webhook Atualizar').first().json.headers.authorization }}" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "id", "value": "=eq.{{ $json.id }}" },
+            { "name": "select", "value": "id" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "s12-ler-por-id",
+      "name": "Ler Servico Por Id (PostgREST)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1100, 600],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const encontrados = $input.all().map(i => i.json).filter(row => row && row.id);\nreturn [{ json: { ...$('Validar Dados (Atualizar)').first().json, encontrado: encontrados.length > 0 } }];"
+      },
+      "id": "s12-localizar-atualizar",
+      "name": "Localizar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 600]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 1 },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.encontrado }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "s12-encontrado-if",
+      "name": "Encontrado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1540, 600]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/servicos",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "={{ $('Webhook Atualizar').first().json.headers.authorization }}" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "id", "value": "=eq.{{ $json.id }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"nome\": $json.nome, \"preco\": $json.preco, \"duracao_minutos\": $json.duracao_minutos, \"ativo\": $json.ativo } }}",
+        "options": {}
+      },
+      "id": "s12-atualizar",
+      "name": "Atualizar Servico (PostgREST)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1760, 520]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"sucesso\": true, \"mensagem\": \"Servico atualizado.\" } }}",
+        "options": {
+          "responseHeaders": { "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }] }
+        }
+      },
+      "id": "s12-responder-atualizar",
+      "name": "Responder Sucesso (Atualizar)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1980, 520]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"sucesso\": false, \"mensagem\": \"Servico nao encontrado.\" } }}",
+        "options": {
+          "responseHeaders": { "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }] },
+          "responseCode": 404
+        }
+      },
+      "id": "s12-404-atualizar",
+      "name": "Responder Nao Encontrado (Atualizar)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1540, 760]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"sucesso\": false, \"mensagem\": $json.erro } }}",
+        "options": {
+          "responseHeaders": { "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }] },
+          "responseCode": 400
+        }
+      },
+      "id": "s12-invalido-atualizar",
+      "name": "Responder Invalido (Atualizar)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 860]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"sucesso\": false, \"mensagem\": \"Nao autorizado.\" } }}",
+        "options": {
+          "responseHeaders": { "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }] },
+          "responseCode": 401
+        }
+      },
+      "id": "s12-401-atualizar",
+      "name": "Responder Nao Autorizado (Atualizar)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [440, 900]
+    }
+  ],
+  "connections": {
+    "Webhook Listar": {
+      "main": [[{ "node": "Autenticar (Listar)", "type": "main", "index": 0 }]]
+    },
+    "Autenticar (Listar)": {
+      "main": [[{ "node": "Autenticado? (Listar)", "type": "main", "index": 0 }]]
+    },
+    "Autenticado? (Listar)": {
+      "main": [
+        [{ "node": "Ler Servicos (PostgREST)", "type": "main", "index": 0 }],
+        [{ "node": "Responder Nao Autorizado (Listar)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Ler Servicos (PostgREST)": {
+      "main": [[{ "node": "Formatar Servicos", "type": "main", "index": 0 }]]
+    },
+    "Formatar Servicos": {
+      "main": [[{ "node": "Responder Listar", "type": "main", "index": 0 }]]
+    },
+    "Webhook Criar": {
+      "main": [[{ "node": "Autenticar (Criar)", "type": "main", "index": 0 }]]
+    },
+    "Autenticar (Criar)": {
+      "main": [[{ "node": "Autenticado? (Criar)", "type": "main", "index": 0 }]]
+    },
+    "Autenticado? (Criar)": {
+      "main": [
+        [{ "node": "Validar Dados (Criar)", "type": "main", "index": 0 }],
+        [{ "node": "Responder Nao Autorizado (Criar)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Validar Dados (Criar)": {
+      "main": [[{ "node": "Dados Validos? (Criar)", "type": "main", "index": 0 }]]
+    },
+    "Dados Validos? (Criar)": {
+      "main": [
+        [{ "node": "Salvar Servico (PostgREST)", "type": "main", "index": 0 }],
+        [{ "node": "Responder Invalido (Criar)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Salvar Servico (PostgREST)": {
+      "main": [[{ "node": "Responder Sucesso (Criar)", "type": "main", "index": 0 }]]
+    },
+    "Webhook Atualizar": {
+      "main": [[{ "node": "Autenticar (Atualizar)", "type": "main", "index": 0 }]]
+    },
+    "Autenticar (Atualizar)": {
+      "main": [[{ "node": "Autenticado? (Atualizar)", "type": "main", "index": 0 }]]
+    },
+    "Autenticado? (Atualizar)": {
+      "main": [
+        [{ "node": "Validar Dados (Atualizar)", "type": "main", "index": 0 }],
+        [{ "node": "Responder Nao Autorizado (Atualizar)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Validar Dados (Atualizar)": {
+      "main": [[{ "node": "Dados Validos? (Atualizar)", "type": "main", "index": 0 }]]
+    },
+    "Dados Validos? (Atualizar)": {
+      "main": [
+        [{ "node": "Ler Servico Por Id (PostgREST)", "type": "main", "index": 0 }],
+        [{ "node": "Responder Invalido (Atualizar)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Ler Servico Por Id (PostgREST)": {
+      "main": [[{ "node": "Localizar", "type": "main", "index": 0 }]]
+    },
+    "Localizar": {
+      "main": [[{ "node": "Encontrado?", "type": "main", "index": 0 }]]
+    },
+    "Encontrado?": {
+      "main": [
+        [{ "node": "Atualizar Servico (PostgREST)", "type": "main", "index": 0 }],
+        [{ "node": "Responder Nao Encontrado (Atualizar)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Atualizar Servico (PostgREST)": {
+      "main": [[{ "node": "Responder Sucesso (Atualizar)", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "pinData": {}
+}

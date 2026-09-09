@@ -1,0 +1,793 @@
+{
+  "name": "02 - Criar Agendamento (Supabase)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "criar-agendamento",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "7d826545-0447-4f89-8ebd-21c02c3a9b23",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1104,
+        272
+      ],
+      "webhookId": "criar-agendamento-post-0001-supabase"
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "empresas",
+        "returnAll": true,
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "slug",
+              "condition": "eq",
+              "keyValue": "={{ $json.body.slug }}"
+            },
+            {
+              "keyName": "ativo",
+              "condition": "eq",
+              "keyValue": "true"
+            }
+          ]
+        },
+        "matchType": "allFilters"
+      },
+      "id": "s02-resolver-empresa",
+      "name": "Resolver Empresa",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -880,
+        272
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SUPABASE_CREDENTIAL",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const encontradas = $input.all().map(i => i.json).filter(row => row && row.id);\nif (encontradas.length === 0) return [{ json: { encontrada: false } }];\nreturn [{ json: { encontrada: true, empresa_id: encontradas[0].id } }];"
+      },
+      "id": "s02-checar-empresa",
+      "name": "Checar Empresa",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -656,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.encontrada }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "s02-empresa-if",
+      "name": "Empresa Encontrada?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -432,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Valida o payload recebido do app do cliente\nconst body = $('Webhook').first().json.body || {};\nconst cliente = body.cliente || {};\nconst ag = body.agendamento || {};\n\nconst erros = [];\nif (!cliente.nome || !String(cliente.nome).trim()) erros.push('nome');\nif (!cliente.whatsapp || !/^\\d{10,13}$/.test(String(cliente.whatsapp).replace(/\\D/g, ''))) erros.push('whatsapp');\nif (!ag.servico) erros.push('servico');\nif (!ag.cabeleireiro || !String(ag.cabeleireiro).trim()) erros.push('cabeleireiro');\nif (!ag.data || !/^\\d{4}-\\d{2}-\\d{2}$/.test(ag.data)) erros.push('data');\nif (!ag.hora || !/^\\d{2}:\\d{2}$/.test(ag.hora)) erros.push('hora');\n\nif (erros.length) {\n  return [{\n    json: {\n      valido: false,\n      status: 400,\n      erro: 'Campos invalidos ou ausentes: ' + erros.join(', ')\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    valido: true,\n    empresa_id: $('Checar Empresa').first().json.empresa_id,\n    id: 'AG-' + Date.now(),\n    nome: String(cliente.nome).trim(),\n    whatsapp: String(cliente.whatsapp).replace(/\\D/g, ''),\n    servico: ag.servico,\n    preco: Number(ag.preco) || 0,\n    duracao_minutos: Number(ag.duracao_minutos) || 30,\n    cabeleireiro: String(ag.cabeleireiro).trim(),\n    data: ag.data,\n    hora: ag.hora,\n    status: 'Confirmado',\n    criado_em: new Date().toISOString(),\n    lembrete_enviado: false\n  }\n}];"
+      },
+      "id": "dce46778-3f80-4723-9937-2bde085d1255",
+      "name": "Validar Dados",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -208,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.valido }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1fe01128-86f2-4bcc-a17e-ea82512c6e51",
+      "name": "Dados Validos?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        0,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "servicos",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "nome",
+              "condition": "eq",
+              "keyValue": "={{ $('Validar Dados').first().json.servico }}"
+            },
+            {
+              "keyName": "empresa_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Validar Dados').first().json.empresa_id }}"
+            }
+          ]
+        },
+        "matchType": "allFilters"
+      },
+      "id": "fe55f0a6-090a-4015-953b-8deb55995624",
+      "name": "Ler Servicos (Supabase)",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        224,
+        0
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SUPABASE_CREDENTIAL",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// A query ao Supabase ja filtrou por nome+empresa; aqui confirma que esta ativo e trava preco/duracao no catalogo\nconst novo = $('Validar Dados').first().json;\nconst encontrados = $input.all().map(i => i.json).filter(row => row && row.nome === novo.servico && row.ativo === true);\n\nif (encontrados.length === 0) {\n  return [{\n    json: {\n      valido: false,\n      encontrado: false,\n      erro: 'Servico nao encontrado ou inativo: ' + novo.servico\n    }\n  }];\n}\n\nconst servico = encontrados[0];\n\nreturn [{\n  json: {\n    ...novo,\n    encontrado: true,\n    preco: Number(servico.preco) || 0,\n    duracao_minutos: Number(servico.duracao_minutos) || 30\n  }\n}];"
+      },
+      "id": "2e7de2bd-4834-4b8f-bbba-f493f7a32a30",
+      "name": "Aplicar Preco Do Catalogo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.encontrado }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "27b0301b-c3b6-4ee3-8ad0-078a75ead7a3",
+      "name": "Servico Encontrado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "agendamentos",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "cabeleireiro",
+              "condition": "eq",
+              "keyValue": "={{ $('Aplicar Preco Do Catalogo').first().json.cabeleireiro }}"
+            },
+            {
+              "keyName": "empresa_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Aplicar Preco Do Catalogo').first().json.empresa_id }}"
+            }
+          ]
+        },
+        "matchType": "allFilters"
+      },
+      "id": "fcc6a91a-714e-41fe-8928-7156c1bcb2bd",
+      "name": "Ler Agendamentos Existentes (Supabase)",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        224,
+        176
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SUPABASE_CREDENTIAL",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "bloqueios",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "cabeleireiro",
+              "condition": "eq",
+              "keyValue": "={{ $('Aplicar Preco Do Catalogo').first().json.cabeleireiro }}"
+            },
+            {
+              "keyName": "empresa_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Aplicar Preco Do Catalogo').first().json.empresa_id }}"
+            }
+          ]
+        },
+        "matchType": "allFilters"
+      },
+      "id": "91e14232-2a8b-4d90-8a93-3393523def45",
+      "name": "Ler Bloqueios Ativos (Supabase)",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        224,
+        336
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SUPABASE_CREDENTIAL",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Verifica se o novo horario colide com algum agendamento ja confirmado DO MESMO cabeleireiro\n// (agenda por profissional: dois clientes podem marcar o mesmo horario com pessoas diferentes)\n// ou com um bloqueio de agenda criado pelo admin (folga/ferias/etc) para o mesmo cabeleireiro/data.\n// As duas queries ao Supabase ja filtraram por cabeleireiro+empresa; aqui filtra por data+status e calcula a sobreposicao.\nconst novo = $('Aplicar Preco Do Catalogo').first().json;\n\nconst toMinutos = (hhmm) => {\n  const [h, m] = String(hhmm).split(':').map(Number);\n  return h * 60 + m;\n};\n\nconst inicioNovo = toMinutos(novo.hora);\nconst fimNovo = inicioNovo + novo.duracao_minutos;\n\nconst existentes = $('Ler Agendamentos Existentes (Supabase)').all()\n  .map(i => i.json)\n  .filter(row => row && row.hora && row.data === novo.data && row.status !== 'Cancelado');\n\nconst conflitoAgendamento = existentes.some(row => {\n  const inicio = toMinutos(row.hora);\n  const fim = inicio + (Number(row.duracao_minutos) || 30);\n  return inicio < fimNovo && fim > inicioNovo;\n});\n\nconst bloqueios = $('Ler Bloqueios Ativos (Supabase)').all()\n  .map(i => i.json)\n  .filter(row => row && row.data === novo.data && row.status === 'Ativo');\n\nconst bloqueioDiaInteiro = bloqueios.some(b => !b.hora_inicio && !b.hora_fim);\n\nconst conflitoBloqueio = bloqueioDiaInteiro || bloqueios.some(b => {\n  if (!b.hora_inicio || !b.hora_fim) return false;\n  const inicio = toMinutos(b.hora_inicio);\n  const fim = toMinutos(b.hora_fim);\n  return inicio < fimNovo && fim > inicioNovo;\n});\n\nreturn [{ json: { ...novo, conflito: conflitoAgendamento || conflitoBloqueio } }];"
+      },
+      "id": "b02e685a-8fdc-4925-bac0-f394e227f965",
+      "name": "Checar Conflito",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.conflito }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7db39be1-3ec1-4d83-94a3-2e9c9a1306c0",
+      "name": "Horario Livre?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        672,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "tableId": "agendamentos",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "id",
+              "fieldValue": "={{ $json.id }}"
+            },
+            {
+              "fieldId": "empresa_id",
+              "fieldValue": "={{ $json.empresa_id }}"
+            },
+            {
+              "fieldId": "nome",
+              "fieldValue": "={{ $json.nome }}"
+            },
+            {
+              "fieldId": "whatsapp",
+              "fieldValue": "={{ $json.whatsapp }}"
+            },
+            {
+              "fieldId": "servico",
+              "fieldValue": "={{ $json.servico }}"
+            },
+            {
+              "fieldId": "preco",
+              "fieldValue": "={{ $json.preco }}"
+            },
+            {
+              "fieldId": "duracao_minutos",
+              "fieldValue": "={{ $json.duracao_minutos }}"
+            },
+            {
+              "fieldId": "cabeleireiro",
+              "fieldValue": "={{ $json.cabeleireiro }}"
+            },
+            {
+              "fieldId": "data",
+              "fieldValue": "={{ $json.data }}"
+            },
+            {
+              "fieldId": "hora",
+              "fieldValue": "={{ $json.hora }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "={{ $json.status }}"
+            },
+            {
+              "fieldId": "criado_em",
+              "fieldValue": "={{ $json.criado_em }}"
+            },
+            {
+              "fieldId": "lembrete_enviado",
+              "fieldValue": "={{ $json.lembrete_enviado }}"
+            }
+          ]
+        }
+      },
+      "id": "4dbc4e7b-8348-4e1b-ba8b-1e304b7aa29b",
+      "name": "Salvar Agendamento (Supabase)",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        896,
+        96
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SUPABASE_CREDENTIAL",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.EVOLUTION_API_URL }}/message/sendText/{{ $env.EVOLUTION_INSTANCE }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"number\": $json.whatsapp, \"text\": \"Olá \" + $json.nome + \"! ✅ Seu agendamento no \" + $env.SALON_NAME + \" foi confirmado:\\n\\n💈 \" + $json.servico + \"\\n📅 \" + $json.data + \" às \" + $json.hora + \"\\n💰 R$ \" + Number($json.preco).toFixed(2) + \"\\n\\nAté breve!\" } }}",
+        "options": {}
+      },
+      "id": "1c90845a-2eb2-46ef-b1bd-ab77a1aab813",
+      "name": "WhatsApp Confirmacao Cliente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        16
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.EVOLUTION_API_URL }}/message/sendText/{{ $env.EVOLUTION_INSTANCE }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"number\": $env.SALON_ADMIN_WHATSAPP, \"text\": \"📅 Novo agendamento!\\n\\nCliente: \" + $json.nome + \" (\" + $json.whatsapp + \")\\nServico: \" + $json.servico + \"\\nData: \" + $json.data + \" às \" + $json.hora } }}",
+        "options": {}
+      },
+      "id": "75388d27-2043-441c-ac91-187690d62cee",
+      "name": "WhatsApp Notifica Dono",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        176
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"sucesso\": true, \"mensagem\": \"Agendamento confirmado!\", \"agendamento\": $('Checar Conflito').item.json } }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "eda66ce9-3cbc-4739-b679-362911412115",
+      "name": "Responder Sucesso",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1344,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"sucesso\": false, \"mensagem\": \"Este horario nao esta mais disponivel. Escolha outro horario.\" } }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "d8bd7204-9f94-46c4-b020-b97235463425",
+      "name": "Responder Conflito",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        896,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"sucesso\": false, \"mensagem\": $json.erro } }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "f4cc17f9-9b7f-4294-86fa-4c48e2519ce2",
+      "name": "Responder Invalido",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        224,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"sucesso\": false, \"mensagem\": \"Salao nao encontrado.\" } }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          },
+          "responseCode": 404
+        }
+      },
+      "id": "s02-respond-404",
+      "name": "Responder Empresa Nao Encontrada",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -432,
+        460
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Resolver Empresa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolver Empresa": {
+      "main": [
+        [
+          {
+            "node": "Checar Empresa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checar Empresa": {
+      "main": [
+        [
+          {
+            "node": "Empresa Encontrada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Empresa Encontrada?": {
+      "main": [
+        [
+          {
+            "node": "Validar Dados",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Empresa Nao Encontrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Dados": {
+      "main": [
+        [
+          {
+            "node": "Dados Validos?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dados Validos?": {
+      "main": [
+        [
+          {
+            "node": "Ler Servicos (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Invalido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler Servicos (Supabase)": {
+      "main": [
+        [
+          {
+            "node": "Aplicar Preco Do Catalogo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aplicar Preco Do Catalogo": {
+      "main": [
+        [
+          {
+            "node": "Servico Encontrado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Servico Encontrado?": {
+      "main": [
+        [
+          {
+            "node": "Ler Agendamentos Existentes (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Invalido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler Agendamentos Existentes (Supabase)": {
+      "main": [
+        [
+          {
+            "node": "Ler Bloqueios Ativos (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler Bloqueios Ativos (Supabase)": {
+      "main": [
+        [
+          {
+            "node": "Checar Conflito",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checar Conflito": {
+      "main": [
+        [
+          {
+            "node": "Horario Livre?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Horario Livre?": {
+      "main": [
+        [
+          {
+            "node": "Responder Conflito",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Salvar Agendamento (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar Agendamento (Supabase)": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp Confirmacao Cliente",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "WhatsApp Notifica Dono",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp Confirmacao Cliente": {
+      "main": [
+        [
+          {
+            "node": "Responder Sucesso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "pinData": {}
+}

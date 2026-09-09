@@ -1,0 +1,226 @@
+{
+  "name": "06 - Lembrete Automatico WhatsApp (Supabase)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "id": "e7b65b49-0483-4ee0-9b63-685489d330e6",
+      "name": "A cada hora",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1024,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "agendamentos",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "lembrete_enviado",
+              "condition": "eq",
+              "keyValue": "false"
+            }
+          ]
+        }
+      },
+      "id": "dd1194c8-2d44-43b9-8fb3-daa9efb5b5dc",
+      "name": "Ler Agendamentos Pendentes (Supabase)",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        -144
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SUPABASE_CREDENTIAL",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "empresas",
+        "returnAll": true,
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            { "keyName": "ativo", "condition": "eq", "keyValue": "true" }
+          ]
+        }
+      },
+      "id": "s06-buscar-empresas",
+      "name": "Buscar Empresas (Supabase)",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        16
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SUPABASE_CREDENTIAL",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// A query ao Supabase ja filtrou por lembrete_enviado=false; aqui confirma status=Confirmado e falta a\n// janela de 1h (nao da pra expressar isso como filtro simples porque data e hora sao colunas\n// separadas). Lembra o cliente ~1h antes do horario marcado.\n// O sandbox do Code node roda sempre em UTC, ignorando TZ/GENERIC_TIMEZONE do container; America/Sao_Paulo\n// = UTC-3 fixo (sem horario de verao), entao a hora local do agendamento e convertida manualmente pra UTC.\n// Multi-tenant: cada empresa tem sua propria instancia Evolution (evolution_instance) e nome; junta aqui\n// pra o envio usar a instancia certa em vez de uma global.\nconst agora = new Date();\n\nconst dentroDe1h = (row) => {\n  const [ano, mes, dia] = row.data.split('-').map(Number);\n  const [h, m] = row.hora.split(':').map(Number);\n  const dataHoraUTC = Date.UTC(ano, mes - 1, dia, h + 3, m);\n  const diffHoras = (dataHoraUTC - agora.getTime()) / (1000 * 60 * 60);\n  return diffHoras > 0 && diffHoras <= 1;\n};\n\nconst empresasPorId = {};\n$('Buscar Empresas (Supabase)').all().forEach(i => {\n  const e = i.json;\n  if (e && e.id) empresasPorId[e.id] = { nome: e.nome, evolution_instance: e.evolution_instance };\n});\n\nconst pendentes = $('Ler Agendamentos Pendentes (Supabase)').all()\n  .map(i => i.json)\n  .filter(row => row && row.id && row.status === 'Confirmado')\n  .filter(dentroDe1h)\n  .map(row => {\n    const empresa = empresasPorId[row.empresa_id] || {};\n    return {\n      ...row,\n      _empresaNome: empresa.nome || $env.SALON_NAME,\n      _evolutionInstance: empresa.evolution_instance || $env.EVOLUTION_INSTANCE\n    };\n  });\n\nreturn pendentes.map(row => ({ json: row }));"
+      },
+      "id": "bf91d180-fb2c-4a9e-b36f-5b5334f86472",
+      "name": "Selecionar Pendentes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -592,
+        -64
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.EVOLUTION_API_URL }}/message/sendText/{{ $json._evolutionInstance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"number\": $json.whatsapp, \"text\": \"Olá \" + $json.nome + \"! 🔔 Lembrando do seu horário daqui a pouco no \" + $json._empresaNome + \":\\n\\n💈 \" + $json.servico + \"\\n🕒 \" + $json.hora + \"\\n\\nSe precisar remarcar, entre em contato. Até logo!\" } }}",
+        "options": {}
+      },
+      "id": "cb96996c-03cb-4971-a410-a05fe1f8c50e",
+      "name": "Enviar Lembrete WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -368,
+        -64
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "agendamentos",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Selecionar Pendentes').item.json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "lembrete_enviado",
+              "fieldValue": "={{ true }}"
+            }
+          ]
+        }
+      },
+      "id": "cb2995fa-eb9c-40ad-96da-de8b1271ab5c",
+      "name": "Marcar Lembrete Enviado (Supabase)",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -144,
+        -64
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SUPABASE_CREDENTIAL",
+          "name": "Supabase account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "A cada hora": {
+      "main": [
+        [
+          {
+            "node": "Ler Agendamentos Pendentes (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler Agendamentos Pendentes (Supabase)": {
+      "main": [
+        [
+          {
+            "node": "Buscar Empresas (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Empresas (Supabase)": {
+      "main": [
+        [
+          {
+            "node": "Selecionar Pendentes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Selecionar Pendentes": {
+      "main": [
+        [
+          {
+            "node": "Enviar Lembrete WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Lembrete WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Marcar Lembrete Enviado (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "pinData": {}
+}

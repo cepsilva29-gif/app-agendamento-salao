@@ -1,0 +1,27 @@
+# Overrides aplicados automaticamente pelo `docker compose` só neste ambiente local
+# (não é usado na VPS de produção). Expõe as portas do n8n e da Evolution API
+# diretamente em localhost para testar sem precisar do Caddy/HTTPS.
+services:
+  n8n:
+    ports:
+      - "5678:5678"
+
+  evolution-api:
+    ports:
+      - "8080:8080"
+
+  frontend-agenda:
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - ./frontend-agenda:/usr/share/nginx/html:ro
+    ports:
+      - "8081:80"
+
+  frontend-admin:
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - ./frontend-admin:/usr/share/nginx/html:ro
+    ports:
+      - "8082:80"
