@@ -45,8 +45,11 @@
     // path dinâmico do n8n (":slug/...") não serve pra isso, é reservado para webhooks de espera
     // internos). Resolvido automaticamente, nesta ordem:
     //   1. "?slug=..." na própria URL — atalho pra testar localmente sem editar este arquivo.
-    //   2. Subdomínio "agenda.<slug>.dominio" — um único deploy serve todas as empresas; exige
-    //      DNS wildcard (`*.dominio`) + certificado wildcard apontando pra esse deploy.
+    //   2. Subdomínio "<slug>.agenda.dominio" — um único deploy serve todas as empresas; exige
+    //      DNS wildcard (`*.agenda.dominio`) + certificado wildcard apontando pra esse deploy.
+    //      Note a ordem: o slug vem ANTES de "agenda" (não depois) — DNS wildcard só funciona
+    //      como o rótulo mais à esquerda de um sufixo fixo, "agenda.*.dominio" não é um registro
+    //      válido (confirmado testando no provedor DNS real).
     //   3. "boot-n8n" como último fallback (ex.: abrindo via file:// sem nenhum dos dois acima).
     // Nome da empresa e colaboradores não são mais hardcoded aqui — vêm de /empresa-info-publico
     // (ver carregarEmpresaInfo()).
@@ -54,7 +57,7 @@
       const slugQuery = new URLSearchParams(location.search).get("slug");
       if (slugQuery) return slugQuery;
       const partesHost = location.hostname.split(".");
-      if (partesHost.length >= 3 && partesHost[0] === "agenda") return partesHost[1];
+      if (partesHost.length >= 3 && partesHost[1] === "agenda") return partesHost[0];
       return "boot-n8n";
     })();
   </script>

@@ -12,6 +12,21 @@ agenda.{$DOMAIN} {
 	encode gzip
 }
 
+# Multi-tenant: um deploy de frontend-agenda serve todas as empresas via subdomínio
+# <slug>.agenda.{$DOMAIN} (slug resolvido no próprio frontend, ver EMPRESA_SLUG em
+# frontend-agenda/index.html). Exige registro DNS wildcard "*.agenda.{$DOMAIN}" e, por ser
+# certificado wildcard, o desafio ACME DNS-01 abaixo (não HTTP-01) — só funciona com o build
+# customizado do Caddy em Dockerfile.caddy (módulo dns.providers.cloudflare) e a zona do
+# domínio hospedada na Cloudflare.
+*.agenda.{$DOMAIN} {
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+	}
+	root * /srv/frontend-agenda
+	file_server
+	encode gzip
+}
+
 admin.{$DOMAIN} {
 	root * /srv/frontend-admin
 	file_server

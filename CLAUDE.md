@@ -73,10 +73,21 @@ frontend-admin/index.html (owner dashboard)        ├──HTTP──▶ n8n we
 - **Evolution API** is the self-hosted WhatsApp gateway (Baileys protocol). n8n talks to it via
   HTTP for outbound sends; it forwards inbound messages to the `07-chatbot-whatsapp` webhook via
   `WEBHOOK_GLOBAL_URL`. Reference: `docs/evolution-api-setup.md`.
-- **Caddy** reverse-proxies 4 subdomains and serves the two frontend directories as static files
-  with automatic HTTPS: `agenda.$DOMAIN` → `frontend-agenda/`, `admin.$DOMAIN` →
-  `frontend-admin/`, `n8n.$DOMAIN` → n8n container, `evolution.$DOMAIN` → Evolution API
-  container. Routing rules: `Caddyfile`.
+- **Caddy** reverse-proxies subdomains and serves the two frontend directories as static files
+  with automatic HTTPS: `agenda.$DOMAIN` → `frontend-agenda/` (single-tenant/Google-Sheets deploy),
+  `admin.$DOMAIN` → `frontend-admin/`, `n8n.$DOMAIN` → n8n container, `evolution.$DOMAIN` →
+  Evolution API container. Routing rules: `Caddyfile`.
+  - Multi-tenant `frontend-agenda` (Supabase track) is served by a 5th block,
+    `*.agenda.$DOMAIN` — one deploy for every empresa, slug resolved from the subdomain (see
+    `EMPRESA_SLUG` in `frontend-agenda/index.html`). Because it's a wildcard, its certificate
+    needs the ACME **DNS-01** challenge (HTTP-01 can't prove control of a wildcard name), which
+    requires: the zone for `$DOMAIN` hosted on **Cloudflare** (not Hostinger's own DNS — confirmed
+    by testing that Hostinger rejects a DNS record with the wildcard in a non-leftmost position,
+    e.g. `agenda.*.$DOMAIN`, which is why the slug comes *before* "agenda" in the hostname, not
+    after); the Caddy image built from `Dockerfile.caddy` (stock `caddy:2-alpine` has no DNS
+    provider modules) with the official `caddy-dns/cloudflare` module; and a `CLOUDFLARE_API_TOKEN`
+    env var (Zone:DNS:Edit scope) consumed by the `tls { dns cloudflare ... }` block for that site
+    in the `Caddyfile`.
 - **`n8n-workflows-supabase/*.json`** — a parallel set of workflows (`00`-`12`, 13 files), modeled
   on `n8n-workflows/` but reading/writing a Supabase Postgres database instead of Google Sheets,
   and **multi-tenant**: several empresas (salons) share one installation, isolated by
@@ -156,7 +167,7 @@ No package manager, no build. Local dev spins up the whole stack via Docker Comp
 `.env.example` committed in this directory — create `.env` directly (see the variables
 referenced in `docker-compose.yml`: `DOMAIN`, `N8N_ENCRYPTION_KEY`, `N8N_BASIC_AUTH_USER/PASSWORD`,
 `TIMEZONE`, `N8N_DB_PASSWORD`, `GOOGLE_SHEET_ID`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE`,
-`EVOLUTION_DB_PASSWORD`, `SALON_ADMIN_WHATSAPP`, `SALON_NAME`), then:
+`EVOLUTION_DB_PASSWORD`, `SALON_ADMIN_WHATSAPP`, `SALON_NAME`, `CLOUDFLARE_API_TOKEN`), then:
 
 ```bash
 docker compose up -d
@@ -193,9 +204,12 @@ When changing logic that lives in these workflows:
 ## Production deployment target
 
 Single Hostinger KVM 2 VPS running the full `docker-compose.yml` stack (n8n + Postgres for n8n +
-Evolution API + its own Postgres/Redis + Caddy), with 4 DNS A records pointing at it
-(`n8n.`, `evolution.`, `agenda.`, `admin.` subdomains of `$DOMAIN`). Full step-by-step is in
-`docs/deploy-vps-hostinger.md`. Never commit a real `.env` — it's git-ignored, and only ever
+Evolution API + its own Postgres/Redis + Caddy), with DNS A records pointing at it for
+`n8n.`, `evolution.`, `agenda.`, `admin.` subdomains of `$DOMAIN`, plus a wildcard
+`*.agenda.$DOMAIN` record for the multi-tenant `frontend-agenda` deploy (see the Caddy wildcard
+note above) — that record's zone must be hosted on Cloudflare, not Hostinger's own DNS. Full
+step-by-step is in `docs/deploy-vps-hostinger.md`. Never commit a real `.env` — it's git-ignored,
+and only ever
 belongs on the VPS.
 
 **Alternative deployment target**: `docs/deploy-easypanel.md` documents deploying to Easypanel

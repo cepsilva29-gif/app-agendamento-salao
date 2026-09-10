@@ -1,0 +1,11 @@
+# Build customizado do Caddy com o módulo oficial dns.providers.cloudflare (caddy-dns/cloudflare),
+# necessário para o desafio ACME DNS-01 usado no certificado wildcard de *.agenda.{$DOMAIN}
+# (ver Caddyfile). A imagem caddy:2-alpine padrão não inclui módulos de DNS provider.
+FROM caddy:2-builder-alpine AS builder
+
+RUN xcaddy build \
+    --with github.com/caddy-dns/cloudflare
+
+FROM caddy:2-alpine
+
+COPY --from=builder /usr/bin/caddy /usr/bin/caddy
