@@ -1,0 +1,467 @@
+{
+  "name": "13 - Conectar WhatsApp (Supabase)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "whatsapp-status",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "s13-webhook-status",
+      "name": "Webhook Status",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "whatsapp-status-get-0001-supabase"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/auth/v1/user",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "={{ $json.headers.authorization }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "s13-auth-status",
+      "name": "Autenticar (Status)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 0],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 1 },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "s13-auth-if-status",
+      "name": "Autenticado? (Status)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/empresas",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "={{ $('Webhook Status').first().json.headers.authorization }}" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "select", "value": "evolution_instance" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "s13-ler-empresa-status",
+      "name": "Ler Empresa (Status)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 0],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.EVOLUTION_API_URL }}/instance/connectionState/{{ $json.evolution_instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.EVOLUTION_API_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "s13-checar-instancia-status",
+      "name": "Checar Instancia (Status)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 0],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Evolution API: GET /instance/connectionState/<nome> devolve { instance: { state: 'open'|'connecting'|'close' } }\n// quando a instancia existe; devolve erro (404) quando ainda nao foi criada (empresa nunca conectou).\nconst j = $input.first().json;\nif (!j || j.error) return [{ json: { status: 'nao_criada' } }];\nconst state = j.instance && j.instance.state;\nif (state === 'open') return [{ json: { status: 'conectado' } }];\nif (state === 'connecting') return [{ json: { status: 'conectando' } }];\nreturn [{ json: { status: 'nao_criada' } }];"
+      },
+      "id": "s13-normalizar-status",
+      "name": "Normalizar Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": $json.status } }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }]
+          }
+        }
+      },
+      "id": "s13-responder-status",
+      "name": "Responder Status",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1320, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"sucesso\": false, \"mensagem\": \"Nao autorizado.\" } }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }]
+          },
+          "responseCode": 401
+        }
+      },
+      "id": "s13-401-status",
+      "name": "Responder Nao Autorizado (Status)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [440, 180]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-conectar",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "s13-webhook-conectar",
+      "name": "Webhook Conectar",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 440],
+      "webhookId": "whatsapp-conectar-post-0001-supabase"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/auth/v1/user",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "={{ $json.headers.authorization }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "s13-auth-conectar",
+      "name": "Autenticar (Conectar)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 440],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 1 },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "s13-auth-if-conectar",
+      "name": "Autenticado? (Conectar)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [440, 440]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/empresas",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "={{ $('Webhook Conectar').first().json.headers.authorization }}" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "select", "value": "evolution_instance" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "s13-ler-empresa-conectar",
+      "name": "Ler Empresa (Conectar)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 440],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.EVOLUTION_API_URL }}/instance/connectionState/{{ $json.evolution_instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.EVOLUTION_API_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "s13-checar-instancia-conectar",
+      "name": "Checar Instancia (Conectar)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 440],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 1 },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "empty" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "s13-instancia-existe-if",
+      "name": "Instancia Existe?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1100, 440]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 1 },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.instance.state }}",
+              "rightValue": "open",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "s13-estado-aberto-if",
+      "name": "Estado Aberto?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1320, 360]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"conectado\" } }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }]
+          }
+        }
+      },
+      "id": "s13-responder-ja-conectado",
+      "name": "Responder Ja Conectado",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1540, 260]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.EVOLUTION_API_URL }}/instance/connect/{{ $('Ler Empresa (Conectar)').first().json.evolution_instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.EVOLUTION_API_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "s13-reconectar-instancia",
+      "name": "Reconectar Instancia",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1540, 440],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.EVOLUTION_API_URL }}/instance/create",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.EVOLUTION_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"instanceName\": $('Ler Empresa (Conectar)').first().json.evolution_instance, \"qrcode\": true, \"integration\": \"WHATSAPP-BAILEYS\" } }}",
+        "options": {}
+      },
+      "id": "s13-criar-instancia",
+      "name": "Criar Instancia",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1320, 620],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// A Evolution API usa nomes de campo levemente diferentes entre /instance/create (qrcode.base64)\n// e /instance/connect (base64 direto na raiz) — tenta os dois formatos conhecidos.\nconst j = $input.first().json;\nconst base64 = (j && j.qrcode && j.qrcode.base64) || (j && j.base64) || (j && j.qr) || null;\nreturn [{ json: { qrcode_base64: base64 } }];"
+      },
+      "id": "s13-normalizar-qr",
+      "name": "Normalizar QR",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1760, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"aguardando_leitura\", \"qrcode_base64\": $json.qrcode_base64 } }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }]
+          }
+        }
+      },
+      "id": "s13-responder-aguardando",
+      "name": "Responder Aguardando Leitura",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1980, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"sucesso\": false, \"mensagem\": \"Nao autorizado.\" } }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }]
+          },
+          "responseCode": 401
+        }
+      },
+      "id": "s13-401-conectar",
+      "name": "Responder Nao Autorizado (Conectar)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [440, 620]
+    }
+  ],
+  "connections": {
+    "Webhook Status": {
+      "main": [[{ "node": "Autenticar (Status)", "type": "main", "index": 0 }]]
+    },
+    "Autenticar (Status)": {
+      "main": [[{ "node": "Autenticado? (Status)", "type": "main", "index": 0 }]]
+    },
+    "Autenticado? (Status)": {
+      "main": [
+        [{ "node": "Ler Empresa (Status)", "type": "main", "index": 0 }],
+        [{ "node": "Responder Nao Autorizado (Status)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Ler Empresa (Status)": {
+      "main": [[{ "node": "Checar Instancia (Status)", "type": "main", "index": 0 }]]
+    },
+    "Checar Instancia (Status)": {
+      "main": [[{ "node": "Normalizar Status", "type": "main", "index": 0 }]]
+    },
+    "Normalizar Status": {
+      "main": [[{ "node": "Responder Status", "type": "main", "index": 0 }]]
+    },
+    "Webhook Conectar": {
+      "main": [[{ "node": "Autenticar (Conectar)", "type": "main", "index": 0 }]]
+    },
+    "Autenticar (Conectar)": {
+      "main": [[{ "node": "Autenticado? (Conectar)", "type": "main", "index": 0 }]]
+    },
+    "Autenticado? (Conectar)": {
+      "main": [
+        [{ "node": "Ler Empresa (Conectar)", "type": "main", "index": 0 }],
+        [{ "node": "Responder Nao Autorizado (Conectar)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Ler Empresa (Conectar)": {
+      "main": [[{ "node": "Checar Instancia (Conectar)", "type": "main", "index": 0 }]]
+    },
+    "Checar Instancia (Conectar)": {
+      "main": [[{ "node": "Instancia Existe?", "type": "main", "index": 0 }]]
+    },
+    "Instancia Existe?": {
+      "main": [
+        [{ "node": "Estado Aberto?", "type": "main", "index": 0 }],
+        [{ "node": "Criar Instancia", "type": "main", "index": 0 }]
+      ]
+    },
+    "Estado Aberto?": {
+      "main": [
+        [{ "node": "Responder Ja Conectado", "type": "main", "index": 0 }],
+        [{ "node": "Reconectar Instancia", "type": "main", "index": 0 }]
+      ]
+    },
+    "Reconectar Instancia": {
+      "main": [[{ "node": "Normalizar QR", "type": "main", "index": 0 }]]
+    },
+    "Criar Instancia": {
+      "main": [[{ "node": "Normalizar QR", "type": "main", "index": 0 }]]
+    },
+    "Normalizar QR": {
+      "main": [[{ "node": "Responder Aguardando Leitura", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

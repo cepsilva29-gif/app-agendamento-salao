@@ -61,7 +61,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const encontradas = $input.all().map(i => i.json).filter(row => row && row.id);\nif (encontradas.length === 0) return [{ json: { encontrada: false } }];\nreturn [{ json: { encontrada: true, empresa_id: encontradas[0].id } }];"
+        "jsCode": "const encontradas = $input.all().map(i => i.json).filter(row => row && row.id);\nif (encontradas.length === 0) return [{ json: { encontrada: false } }];\nconst e = encontradas[0];\nreturn [{ json: { encontrada: true, empresa_id: e.id, evolution_instance: e.evolution_instance, nome: e.nome, whatsapp_admin: e.whatsapp_admin } }];"
       },
       "id": "s02-checar-empresa",
       "name": "Checar Empresa",
@@ -432,7 +432,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.EVOLUTION_API_URL }}/message/sendText/{{ $env.EVOLUTION_INSTANCE }}",
+        "url": "={{ $env.EVOLUTION_API_URL }}/message/sendText/{{ $('Checar Empresa').first().json.evolution_instance }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -444,7 +444,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"number\": $json.whatsapp, \"text\": \"Olá \" + $json.nome + \"! ✅ Seu agendamento no \" + $env.SALON_NAME + \" foi confirmado:\\n\\n💈 \" + $json.servico + \"\\n📅 \" + $json.data + \" às \" + $json.hora + \"\\n💰 R$ \" + Number($json.preco).toFixed(2) + \"\\n\\nAté breve!\" } }}",
+        "jsonBody": "={{ { \"number\": $json.whatsapp, \"text\": \"Olá \" + $json.nome + \"! ✅ Seu agendamento no \" + $('Checar Empresa').first().json.nome + \" foi confirmado:\\n\\n💈 \" + $json.servico + \"\\n📅 \" + $json.data + \" às \" + $json.hora + \"\\n💰 R$ \" + Number($json.preco).toFixed(2) + \"\\n\\nAté breve!\" } }}",
         "options": {}
       },
       "id": "1c90845a-2eb2-46ef-b1bd-ab77a1aab813",
@@ -460,7 +460,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.EVOLUTION_API_URL }}/message/sendText/{{ $env.EVOLUTION_INSTANCE }}",
+        "url": "={{ $env.EVOLUTION_API_URL }}/message/sendText/{{ $('Checar Empresa').first().json.evolution_instance }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -472,7 +472,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"number\": $env.SALON_ADMIN_WHATSAPP, \"text\": \"📅 Novo agendamento!\\n\\nCliente: \" + $json.nome + \" (\" + $json.whatsapp + \")\\nServico: \" + $json.servico + \"\\nData: \" + $json.data + \" às \" + $json.hora } }}",
+        "jsonBody": "={{ { \"number\": $('Checar Empresa').first().json.whatsapp_admin, \"text\": \"📅 Novo agendamento!\\n\\nCliente: \" + $json.nome + \" (\" + $json.whatsapp + \")\\nServico: \" + $json.servico + \"\\nData: \" + $json.data + \" às \" + $json.hora } }}",
         "options": {}
       },
       "id": "75388d27-2043-441c-ac91-187690d62cee",

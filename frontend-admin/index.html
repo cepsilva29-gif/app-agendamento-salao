@@ -212,6 +212,21 @@
         </div>
 
         <div class="card rounded-xl p-5">
+          <h2 class="text-xs text-gray-400 uppercase tracking-wide mb-4">WhatsApp</h2>
+          <div class="flex items-center justify-between gap-2 mb-3">
+            <span id="whatsappBadge" class="text-xs px-2.5 py-1 rounded-full bg-gray-500/20 text-gray-400">Verificando...</span>
+            <button type="button" id="btnConectarWhatsapp"
+              class="text-xs bg-gold text-black px-3 py-1.5 rounded-lg font-semibold disabled:opacity-40">Conectar WhatsApp</button>
+          </div>
+          <div id="whatsappQrContainer" class="hidden text-center space-y-2">
+            <img id="whatsappQrImg" alt="QR Code do WhatsApp" class="mx-auto rounded-lg border border-[#262b33] max-w-[220px]">
+            <p class="text-xs text-gray-400">Abra o WhatsApp no celular da empresa → Aparelhos conectados → Conectar um
+              aparelho, e escaneie o código acima.</p>
+          </div>
+          <p id="whatsappErro" class="text-xs text-red-400 hidden"></p>
+        </div>
+
+        <div class="card rounded-xl p-5">
           <h2 class="text-xs text-gray-400 uppercase tracking-wide mb-4">Serviços</h2>
           <form id="formServico" class="space-y-3">
             <input type="text" id="servicoNome" required placeholder="Nome do serviço"
@@ -390,6 +405,7 @@
             carregarBloqueios();
             carregarAgendamentos();
             carregarServicos();
+            carregarStatusWhatsapp();
           });
         } else {
           authEl.dashboard.classList.add('hidden');
@@ -430,7 +446,12 @@
         servicoDuracao: document.getElementById('servicoDuracao'),
         btnCriarServico: document.getElementById('btnCriarServico'),
         servicoErro: document.getElementById('servicoErro'),
-        listaServicos: document.getElementById('listaServicos')
+        listaServicos: document.getElementById('listaServicos'),
+        whatsappBadge: document.getElementById('whatsappBadge'),
+        btnConectarWhatsapp: document.getElementById('btnConectarWhatsapp'),
+        whatsappQrContainer: document.getElementById('whatsappQrContainer'),
+        whatsappQrImg: document.getElementById('whatsappQrImg'),
+        whatsappErro: document.getElementById('whatsappErro')
       };
 
       el.inputData.value = new Date().toISOString().slice(0, 10);
@@ -845,8 +866,91 @@
         }
       });
 
-      // carregarEmpresaInfo/carregarBloqueios/carregarAgendamentos/carregarServicos rodam via
-      // supabase.auth.onAuthStateChange() acima, assim que houver sessão válida.
+      // ---- WhatsApp (conexão da instância Evolution API) ----
+      let whatsappPollTimer = null;
+      let whatsappPollDeadline = 0;
+
+      function pararPollingWhatsapp() {
+        if (whatsappPollTimer) {
+          clearInterval(whatsappPollTimer);
+          whatsappPollTimer = null;
+        }
+      }
+
+      function aplicarStatusWhatsapp(status) {
+        const badge = el.whatsappBadge;
+        if (status === 'conectado') {
+          badge.textContent = 'Conectado';
+          badge.className = 'text-xs px-2.5 py-1 rounded-full bg-green-500/20 text-green-400';
+          el.btnConectarWhatsapp.classList.add('hidden');
+          el.whatsappQrContainer.classList.add('hidden');
+          pararPollingWhatsapp();
+        } else if (status === 'conectando') {
+          badge.textContent = 'Conectando...';
+          badge.className = 'text-xs px-2.5 py-1 rounded-full bg-yellow-500/20 text-yellow-400';
+          el.btnConectarWhatsapp.classList.remove('hidden');
+        } else {
+          badge.textContent = 'Não conectado';
+          badge.className = 'text-xs px-2.5 py-1 rounded-full bg-gray-500/20 text-gray-400';
+          el.btnConectarWhatsapp.classList.remove('hidden');
+        }
+      }
+
+      async function carregarStatusWhatsapp() {
+        try {
+          const resp = await fetchAutenticado(`${N8N_BASE_URL}/whatsapp-status`);
+          const dados = await resp.json();
+          aplicarStatusWhatsapp(dados.status);
+        } catch (err) {
+          // mantém o badge como estava; não interrompe o resto do painel por causa disso
+        }
+      }
+
+      function iniciarPollingWhatsapp() {
+        pararPollingWhatsapp();
+        whatsappPollDeadline = Date.now() + 2 * 60 * 1000;
+        whatsappPollTimer = setInterval(async () => {
+          if (Date.now() > whatsappPollDeadline) {
+            pararPollingWhatsapp();
+            el.whatsappErro.textContent = 'QR Code expirou. Clique em "Conectar WhatsApp" novamente.';
+            el.whatsappErro.classList.remove('hidden');
+            return;
+          }
+          await carregarStatusWhatsapp();
+        }, 4000);
+      }
+
+      el.btnConectarWhatsapp.addEventListener('click', async () => {
+        el.whatsappErro.classList.add('hidden');
+        el.btnConectarWhatsapp.disabled = true;
+        el.btnConectarWhatsapp.textContent = 'Gerando QR Code...';
+        try {
+          const resp = await fetchAutenticado(`${N8N_BASE_URL}/whatsapp-conectar`, { method: 'POST' });
+          const dados = await resp.json();
+          if (dados.status === 'conectado') {
+            aplicarStatusWhatsapp('conectado');
+          } else if (dados.qrcode_base64) {
+            const src = dados.qrcode_base64.startsWith('data:')
+              ? dados.qrcode_base64
+              : `data:image/png;base64,${dados.qrcode_base64}`;
+            el.whatsappQrImg.src = src;
+            el.whatsappQrContainer.classList.remove('hidden');
+            iniciarPollingWhatsapp();
+          } else {
+            el.whatsappErro.textContent = 'Não foi possível gerar o QR Code. Tente novamente.';
+            el.whatsappErro.classList.remove('hidden');
+          }
+        } catch (err) {
+          el.whatsappErro.textContent = 'Erro de conexão. Tente novamente.';
+          el.whatsappErro.classList.remove('hidden');
+        } finally {
+          el.btnConectarWhatsapp.disabled = false;
+          el.btnConectarWhatsapp.textContent = 'Conectar WhatsApp';
+        }
+      });
+
+      // carregarEmpresaInfo/carregarBloqueios/carregarAgendamentos/carregarServicos/carregarStatusWhatsapp
+      // rodam via supabase.auth.onAuthStateChange() acima, assim que houver sessão válida.
       setInterval(() => {
         if (!authEl.dashboard.classList.contains('hidden')) carregarAgendamentos();
       }, 60000); // auto-atualiza a cada 1 minuto, só quando logado

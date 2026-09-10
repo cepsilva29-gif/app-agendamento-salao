@@ -88,7 +88,7 @@ frontend-admin/index.html (owner dashboard)        ├──HTTP──▶ n8n we
     provider modules) with the official `caddy-dns/cloudflare` module; and a `CLOUDFLARE_API_TOKEN`
     env var (Zone:DNS:Edit scope) consumed by the `tls { dns cloudflare ... }` block for that site
     in the `Caddyfile`.
-- **`n8n-workflows-supabase/*.json`** — a parallel set of workflows (`00`-`12`, 13 files), modeled
+- **`n8n-workflows-supabase/*.json`** — a parallel set of workflows (`00`-`13`, 14 files), modeled
   on `n8n-workflows/` but reading/writing a Supabase Postgres database instead of Google Sheets,
   and **multi-tenant**: several empresas (salons) share one installation, isolated by
   `empresa_id` + Postgres Row Level Security. Schema source of truth: `supabase/schema.sql` (also
@@ -104,7 +104,7 @@ frontend-admin/index.html (owner dashboard)        ├──HTTP──▶ n8n we
     an arbitrary business value like a tenant slug — confirmed by testing against a local n8n
     instance. These workflows keep using the `service_role` Supabase credential (no logged-in user
     to scope by) — every query is filtered by the resolved `empresa_id` explicitly.
-  - Admin workflows (`03`-`05`, `08`-`10`, `12`, and the admin half of `11`) require a Supabase
+  - Admin workflows (`03`-`05`, `08`-`10`, `12`, `13`, and the admin half of `11`) require a Supabase
     Auth JWT forwarded from `frontend-admin` (`Authorization: Bearer <token>`). Their first node
     verifies the token against `${SUPABASE_URL}/auth/v1/user`; the Supabase reads/writes then go
     through **HTTP Request** nodes calling PostgREST directly with the `anon` key + that forwarded
@@ -115,6 +115,23 @@ frontend-admin/index.html (owner dashboard)        ├──HTTP──▶ n8n we
     `POST /atualizar-servico` (full-row update — nome/preco/duracao_minutos/ativo together, no
     partial-patch semantics). Before this workflow existed, adding a service meant hand-editing
     the `servicos` table in Supabase's Table Editor — not viable once salons self-serve.
+  - Multi-tenant means one Evolution API deployment hosts **one WhatsApp instance per empresa**
+    (`empresas.evolution_instance`, set to the slug at signup — see `handle_new_user()` in
+    `supabase/schema.sql`), not the single global `$env.EVOLUTION_INSTANCE` the Google Sheets
+    track uses. Every outbound send in `02`, `04`, `05` looks up the sending empresa's row first
+    and targets `.../message/sendText/<evolution_instance>` (and uses that empresa's `nome` /
+    `whatsapp_admin` in the message text) instead of the old env vars; `$env.SALON_NAME` /
+    `$env.SALON_ADMIN_WHATSAPP` only survive as fallbacks where an empresa can't be resolved.
+  - `13-conectar-whatsapp-supabase` (`/whatsapp-status` GET, `/whatsapp-conectar` POST) is what
+    lets an empresa pair its own WhatsApp instance from the admin dashboard instead of an operator
+    running `curl` against the Evolution API by hand: `/whatsapp-status` reports
+    `nao_criada`/`conectando`/`conectado` via `GET /instance/connectionState/<slug>`;
+    `/whatsapp-conectar` creates the instance if it doesn't exist yet (`POST /instance/create`,
+    `qrcode: true`) or reconnects it if it exists but isn't `open` (`GET /instance/connect/<slug>`),
+    and returns the QR code as base64 for `frontend-admin` to render and poll against. Both
+    Evolution API response shapes (`qrcode.base64` from `/instance/create` vs. a root-level
+    `base64`/`qr` from `/instance/connect`) are normalized in one Code node since the two endpoints
+    don't agree on field naming.
   - `06-lembrete-automatico` and `07-chatbot-whatsapp` have no per-request user or slug (cron /
     inbound WhatsApp), so they resolve the empresa from data instead: `06` joins each pending
     reminder against `empresas` to find the right `evolution_instance`; `07` reads the `instance`
@@ -151,7 +168,10 @@ auto-detection of local vs. production based on `IS_LOCAL = location.protocol ==
   colaboradores }`) is what actually provisions a new empresa, via the `handle_new_user` trigger
   in `supabase/schema.sql` — there is no separate n8n signup endpoint. The dashboard's "Serviços"
   card (list + inline edit/toggle + add form) talks to workflow `12` — this is how an empresa
-  manages its own catalog; there's no other UI for it.
+  manages its own catalog; there's no other UI for it. The "WhatsApp" card talks to workflow `13`:
+  polls `/whatsapp-status` on load to show a badge (não conectado/conectando/conectado), and its
+  "Conectar WhatsApp" button calls `/whatsapp-conectar`, renders the returned QR code, and polls
+  status every 4s for up to 2 minutes waiting for a scan (then tells the user the QR expired).
 
 Neither file hardcodes collaborator names (`COLABORADORES`) or the empresa name anymore — both
 call `GET .../empresa-info` after resolving the empresa (by slug for `frontend-agenda`, by JWT for

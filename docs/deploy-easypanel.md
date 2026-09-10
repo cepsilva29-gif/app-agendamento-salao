@@ -113,7 +113,7 @@ mexer no `Caddyfile` deste repo — ele não é usado neste caminho):
 
 Na pasta `n8n-workflows-supabase/` (não confundir com `n8n-workflows/`, que é a versão Google
 Sheets original, single-tenant, e continua intocada), importe cada arquivo `.json` em
-**n8n → Workflows → Import from File**, na ordem numérica (agora 13 arquivos, `00` a `12`).
+**n8n → Workflows → Import from File**, na ordem numérica (agora 14 arquivos, `00` a `13`).
 Depois de importar cada um:
 
 1. Abra todo nó **Supabase** do workflow — como o `.json` traz um `id` de credencial placeholder
@@ -136,7 +136,9 @@ Depois de importar cada um:
    que recebeu a mensagem). O workflow `12` adiciona três caminhos novos, também sem slug (RLS
    resolve a empresa): `/servicos-admin` (GET, lista o catálogo completo inclusive inativos),
    `/criar-servico` e `/atualizar-servico` (POST) — é o que a aba "Serviços" do `frontend-admin`
-   usa.
+   usa. O workflow `13` adiciona `/whatsapp-status` (GET) e `/whatsapp-conectar` (POST) — usados
+   pelo card "WhatsApp" do `frontend-admin` para conectar a instância Evolution da empresa sem
+   precisar de `curl` manual (ver seção 7, abaixo).
 
 As demais configurações (número do WhatsApp, chave da Evolution API) continuam vindo prontas via
 `$env.*` — mesmos nomes de hoje, menos `GOOGLE_SHEET_ID` (não existe mais nesta versão) e menos
@@ -148,16 +150,24 @@ lugares que não conseguem resolver a empresa, ex.: mensagem de erro genérica).
 
 Diferente do caminho single-tenant, aqui cada empresa precisa da própria instância Evolution
 (próprio número de WhatsApp, próprio QR Code) — a Evolution API já suporta várias instâncias no
-mesmo container, então isso não exige um novo serviço, só uma instância nova por empresa. Para
-cada empresa cadastrada (passo 8.1):
+mesmo container, então isso não exige um novo serviço, só uma instância nova por empresa.
 
-1. Crie a instância via `POST /instance/create` com `instanceName` **igual ao slug** da empresa
-   (é o valor que `handle_new_user()` grava em `empresas.evolution_instance` — ver
-   `supabase/schema.sql`), escaneie o QR Code e confirme com
-   `GET /instance/connectionState/<slug>`. Mesmo procedimento detalhado em
-   `docs/evolution-api-setup.md` e na seção 5 de `deploy-vps-hostinger.md`, só trocando a URL
-   base para `https://evolution.SEUDOMINIO`.
-2. O `WEBHOOK_GLOBAL_URL` já aponta pro mesmo endpoint `/webhook/whatsapp-in` do n8n pra todas as
+1. **Fluxo normal (self-service, via painel)**: depois de logada, a empresa abre o card
+   "WhatsApp" do `frontend-admin` e clica em "Conectar WhatsApp". Isso chama o workflow `13`
+   (`/whatsapp-conectar`), que cria a instância na Evolution API se ainda não existir
+   (`instanceName` = slug da empresa, o mesmo valor que `handle_new_user()` grava em
+   `empresas.evolution_instance` — ver `supabase/schema.sql`) ou reconecta se já existir mas não
+   estiver `open`, e devolve o QR Code (base64) pro painel renderizar. O painel faz polling de
+   `/whatsapp-status` a cada 4s por até 2 minutos esperando a leitura. Não precisa de acesso
+   direto à Evolution API nem de `curl` manual — isso é o que existe pra permitir que o dono da
+   empresa conecte o próprio WhatsApp sozinho, sem depender de quem administra a infraestrutura.
+2. **Fallback manual (troubleshooting)**: se o painel não conseguir falar com a Evolution API (ex.:
+   `EVOLUTION_API_URL`/`EVOLUTION_API_KEY` errados nas env vars do n8n), o mesmo resultado pode ser
+   obtido na mão: `POST /instance/create` com `instanceName` igual ao slug, escaneie o QR Code, e
+   confirme com `GET /instance/connectionState/<slug>` — mesmo procedimento detalhado em
+   `docs/evolution-api-setup.md` e na seção 5 de `deploy-vps-hostinger.md`, só trocando a URL base
+   para `https://evolution.SEUDOMINIO`.
+3. O `WEBHOOK_GLOBAL_URL` já aponta pro mesmo endpoint `/webhook/whatsapp-in` do n8n pra todas as
    instâncias (configurado uma vez no serviço Evolution API, não por instância) — o workflow `07`
    descobre sozinho qual empresa é, pelo campo `instance` que a Evolution manda em cada evento.
 

@@ -108,7 +108,7 @@
             },
             {
               "name": "select",
-              "value": "*"
+              "value": "*,empresas(evolution_instance)"
             }
           ]
         },
@@ -126,7 +126,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// A query ja filtrou pelo id recebido (e pela empresa, via RLS); so falta confirmar que achou a linha\nconst encontrados = $input.all().map(i => i.json).filter(row => row && row.id);\n\nif (encontrados.length === 0) {\n  return [{ json: { encontrado: false } }];\n}\n\nreturn [{ json: { ...encontrados[0], encontrado: true } }];"
+        "jsCode": "// A query ja filtrou pelo id recebido (e pela empresa, via RLS); so falta confirmar que achou a linha\nconst encontrados = $input.all().map(i => i.json).filter(row => row && row.id);\n\nif (encontrados.length === 0) {\n  return [{ json: { encontrado: false } }];\n}\n\nconst row = encontrados[0];\nconst evolutionInstance = row.empresas?.evolution_instance;\ndelete row.empresas;\nreturn [{ json: { ...row, evolution_instance: evolutionInstance, encontrado: true } }];"
       },
       "id": "s04-code-localizar",
       "name": "Localizar e Atualizar Status",
@@ -216,7 +216,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.EVOLUTION_API_URL }}/message/sendText/{{ $env.EVOLUTION_INSTANCE }}",
+        "url": "={{ $env.EVOLUTION_API_URL }}/message/sendText/{{ $('Localizar e Atualizar Status').item.json.evolution_instance }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [

@@ -108,7 +108,7 @@
             },
             {
               "name": "select",
-              "value": "*"
+              "value": "*,empresas(evolution_instance,nome)"
             }
           ]
         },
@@ -126,7 +126,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const encontrados = $input.all().map(i => i.json).filter(row => row && row.id);\n\nif (encontrados.length === 0) {\n  return [{ json: { encontrado: false } }];\n}\n\nreturn [{ json: { ...encontrados[0], encontrado: true } }];"
+        "jsCode": "const encontrados = $input.all().map(i => i.json).filter(row => row && row.id);\n\nif (encontrados.length === 0) {\n  return [{ json: { encontrado: false } }];\n}\n\nconst row = encontrados[0];\nconst evolutionInstance = row.empresas?.evolution_instance;\nconst empresaNome = row.empresas?.nome;\ndelete row.empresas;\nreturn [{ json: { ...row, evolution_instance: evolutionInstance, empresa_nome: empresaNome, encontrado: true } }];"
       },
       "id": "s05-code-localizar",
       "name": "Localizar e Atualizar Status",
@@ -216,7 +216,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.EVOLUTION_API_URL }}/message/sendText/{{ $env.EVOLUTION_INSTANCE }}",
+        "url": "={{ $env.EVOLUTION_API_URL }}/message/sendText/{{ $('Localizar e Atualizar Status').item.json.evolution_instance }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -228,7 +228,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"number\": $('Localizar e Atualizar Status').item.json.whatsapp, \"text\": \"Obrigado por vir ao \" + $env.SALON_NAME + \", \" + $('Localizar e Atualizar Status').item.json.nome + \"! Esperamos que tenha gostado do(a) \" + $('Localizar e Atualizar Status').item.json.servico + \". Até a próxima! 💈\" } }}",
+        "jsonBody": "={{ { \"number\": $('Localizar e Atualizar Status').item.json.whatsapp, \"text\": \"Obrigado por vir ao \" + $('Localizar e Atualizar Status').item.json.empresa_nome + \", \" + $('Localizar e Atualizar Status').item.json.nome + \"! Esperamos que tenha gostado do(a) \" + $('Localizar e Atualizar Status').item.json.servico + \". Até a próxima! 💈\" } }}",
         "options": {}
       },
       "id": "s05-http-agradece",
