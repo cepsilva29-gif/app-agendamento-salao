@@ -84,7 +84,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Valida o payload recebido do painel admin\nconst body = $('Webhook').first().json.body || {};\n\nconst erros = [];\nif (!body.cabeleireiro || !String(body.cabeleireiro).trim()) erros.push('cabeleireiro');\nif (!body.data || !/^\\d{4}-\\d{2}-\\d{2}$/.test(body.data)) erros.push('data');\n\nconst diaInteiro = !body.hora_inicio && !body.hora_fim;\nif (!diaInteiro) {\n  if (!body.hora_inicio || !/^\\d{2}:\\d{2}$/.test(body.hora_inicio)) erros.push('hora_inicio');\n  if (!body.hora_fim || !/^\\d{2}:\\d{2}$/.test(body.hora_fim)) erros.push('hora_fim');\n  if (!erros.includes('hora_inicio') && !erros.includes('hora_fim') && body.hora_inicio >= body.hora_fim) {\n    erros.push('hora_fim deve ser depois de hora_inicio');\n  }\n}\n\nif (erros.length) {\n  return [{\n    json: {\n      valido: false,\n      erro: 'Campos invalidos ou ausentes: ' + erros.join(', ')\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    valido: true,\n    id: 'BQ-' + Date.now(),\n    cabeleireiro: String(body.cabeleireiro).trim(),\n    data: body.data,\n    hora_inicio: diaInteiro ? null : body.hora_inicio,\n    hora_fim: diaInteiro ? null : body.hora_fim,\n    motivo: body.motivo ? String(body.motivo).trim() : '',\n    status: 'Ativo',\n    criado_em: new Date().toISOString()\n  }\n}];"
+        "jsCode": "// Valida o payload recebido do painel admin\nconst body = $('Webhook').first().json.body || {};\n\nconst erros = [];\nif (!body.colaborador || !String(body.colaborador).trim()) erros.push('colaborador');\nif (!body.data || !/^\\d{4}-\\d{2}-\\d{2}$/.test(body.data)) erros.push('data');\n\nconst diaInteiro = !body.hora_inicio && !body.hora_fim;\nif (!diaInteiro) {\n  if (!body.hora_inicio || !/^\\d{2}:\\d{2}$/.test(body.hora_inicio)) erros.push('hora_inicio');\n  if (!body.hora_fim || !/^\\d{2}:\\d{2}$/.test(body.hora_fim)) erros.push('hora_fim');\n  if (!erros.includes('hora_inicio') && !erros.includes('hora_fim') && body.hora_inicio >= body.hora_fim) {\n    erros.push('hora_fim deve ser depois de hora_inicio');\n  }\n}\n\nif (erros.length) {\n  return [{\n    json: {\n      valido: false,\n      erro: 'Campos invalidos ou ausentes: ' + erros.join(', ')\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    valido: true,\n    id: 'BQ-' + Date.now(),\n    colaborador: String(body.colaborador).trim(),\n    data: body.data,\n    hora_inicio: diaInteiro ? null : body.hora_inicio,\n    hora_fim: diaInteiro ? null : body.hora_fim,\n    motivo: body.motivo ? String(body.motivo).trim() : '',\n    status: 'Ativo',\n    criado_em: new Date().toISOString()\n  }\n}];"
       },
       "id": "s08-code-validar",
       "name": "Validar Dados",
@@ -151,7 +151,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"id\": $json.id, \"cabeleireiro\": $json.cabeleireiro, \"data\": $json.data, \"hora_inicio\": $json.hora_inicio, \"hora_fim\": $json.hora_fim, \"motivo\": $json.motivo, \"status\": $json.status, \"criado_em\": $json.criado_em } }}",
+        "jsonBody": "={{ { \"id\": $json.id, \"colaborador\": $json.colaborador, \"data\": $json.data, \"hora_inicio\": $json.hora_inicio, \"hora_fim\": $json.hora_fim, \"motivo\": $json.motivo, \"status\": $json.status, \"criado_em\": $json.criado_em } }}",
         "options": {}
       },
       "id": "s08-supabase-create",

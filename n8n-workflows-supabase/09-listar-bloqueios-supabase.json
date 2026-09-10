@@ -138,7 +138,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// A query ja filtrou por status=Ativo (e pela empresa, via RLS); aqui filtra data>=hoje, ordena e formata para o painel admin.\nconst hoje = $('Calcular Data Hoje').first().json.hoje;\nconst bloqueios = $input.all()\n  .map(item => item.json)\n  .filter(row => row && row.id && row.data >= hoje)\n  .sort((a, b) => (a.data + (a.hora_inicio || '00:00')).localeCompare(b.data + (b.hora_inicio || '00:00')))\n  .map(row => ({\n    id: row.id,\n    cabeleireiro: row.cabeleireiro,\n    data: row.data,\n    hora_inicio: row.hora_inicio || null,\n    hora_fim: row.hora_fim || null,\n    dia_inteiro: !row.hora_inicio && !row.hora_fim,\n    motivo: row.motivo || ''\n  }));\n\nreturn [{ json: { bloqueios } }];"
+        "jsCode": "// A query ja filtrou por status=Ativo (e pela empresa, via RLS); aqui filtra data>=hoje, ordena e formata para o painel admin.\nconst hoje = $('Calcular Data Hoje').first().json.hoje;\nconst bloqueios = $input.all()\n  .map(item => item.json)\n  .filter(row => row && row.id && row.data >= hoje)\n  .sort((a, b) => (a.data + (a.hora_inicio || '00:00')).localeCompare(b.data + (b.hora_inicio || '00:00')))\n  .map(row => ({\n    id: row.id,\n    colaborador: row.colaborador,\n    data: row.data,\n    hora_inicio: row.hora_inicio || null,\n    hora_fim: row.hora_fim || null,\n    dia_inteiro: !row.hora_inicio && !row.hora_fim,\n    motivo: row.motivo || ''\n  }));\n\nreturn [{ json: { bloqueios } }];"
       },
       "id": "59c37c00-32c7-43b7-b454-7d3ef3d9f141",
       "name": "Formatar Bloqueios",

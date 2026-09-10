@@ -228,7 +228,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"number\": $('Localizar e Atualizar Status').item.json.whatsapp, \"text\": \"Olá \" + $('Localizar e Atualizar Status').item.json.nome + \", seu agendamento de \" + $('Localizar e Atualizar Status').item.json.servico + \" no dia \" + $('Localizar e Atualizar Status').item.json.data + \" às \" + $('Localizar e Atualizar Status').item.json.hora + \" foi cancelado. Se quiser reagendar, é só acessar o app do salão.\" } }}",
+        "jsonBody": "={{ { \"number\": $('Localizar e Atualizar Status').item.json.whatsapp, \"text\": \"Olá \" + $('Localizar e Atualizar Status').item.json.nome + \", seu agendamento de \" + $('Localizar e Atualizar Status').item.json.servico + \" no dia \" + $('Localizar e Atualizar Status').item.json.data + \" às \" + $('Localizar e Atualizar Status').item.json.hora + \" foi cancelado. Se quiser reagendar, é só acessar o app da empresa.\" } }}",
         "options": {}
       },
       "id": "s04-http-avisa-cliente",

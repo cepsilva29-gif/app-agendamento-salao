@@ -137,18 +137,18 @@ auto-detection of local vs. production based on `IS_LOCAL = location.protocol ==
   `supabase.auth.getSession()`/`onAuthStateChange` reports a session, and every admin webhook
   call goes through `fetchAutenticado()`, which attaches `Authorization: Bearer <access_token>`.
   Signup (`supabase.auth.signUp` with `options.data = { slug, nome_empresa, whatsapp_admin,
-  cabeleireiros }`) is what actually provisions a new empresa, via the `handle_new_user` trigger
+  colaboradores }`) is what actually provisions a new empresa, via the `handle_new_user` trigger
   in `supabase/schema.sql` — there is no separate n8n signup endpoint. The dashboard's "Serviços"
-  card (list + inline edit/toggle + add form) talks to workflow `12` — this is how a salon manages
-  its own catalog; there's no other UI for it.
+  card (list + inline edit/toggle + add form) talks to workflow `12` — this is how an empresa
+  manages its own catalog; there's no other UI for it.
 
-Neither file hardcodes stylist names (`CABELEIREIROS`) or the salon name anymore — both call
-`GET .../empresa-info` after resolving the empresa (by slug for `frontend-agenda`, by JWT for
+Neither file hardcodes collaborator names (`COLABORADORES`) or the empresa name anymore — both
+call `GET .../empresa-info` after resolving the empresa (by slug for `frontend-agenda`, by JWT for
 `frontend-admin`, see workflow `11`) and populate those from the response. Scheduling *is* split
-per-stylist: `01`, `02`, `08`, `09` and `10` all scope their reads/writes to
-`Cabeleireiro === <chosen stylist>` (plus `empresa_id`), so two clients can book the same time
-slot as long as they pick different stylists, and a block on one stylist doesn't affect another's
-availability.
+per-collaborator: `01`, `02`, `08`, `09` and `10` all scope their reads/writes to
+`Colaborador === <chosen collaborator>` (plus `empresa_id`), so two clients can book the same time
+slot as long as they pick different collaborators, and a block on one collaborator doesn't affect
+another's availability.
 
 ## Running locally
 

@@ -43,10 +43,20 @@
     // Identificador da empresa (slug), enviado em toda chamada aos webhooks públicos abaixo
     // (query string nos GET, campo "slug" no body do POST de criar-agendamento — o mecanismo de
     // path dinâmico do n8n (":slug/...") não serve pra isso, é reservado para webhooks de espera
-    // internos). Edite por instalação — mesmo padrão de edição manual por deploy que
-    // N8N_BASE_URL já usa. Nome do salão e cabeleireiros não são mais hardcoded aqui — vêm de
-    // /empresa-info-publico (ver carregarEmpresaInfo()).
-    const EMPRESA_SLUG = "boot-n8n";
+    // internos). Resolvido automaticamente, nesta ordem:
+    //   1. "?slug=..." na própria URL — atalho pra testar localmente sem editar este arquivo.
+    //   2. Subdomínio "agenda.<slug>.dominio" — um único deploy serve todas as empresas; exige
+    //      DNS wildcard (`*.dominio`) + certificado wildcard apontando pra esse deploy.
+    //   3. "boot-n8n" como último fallback (ex.: abrindo via file:// sem nenhum dos dois acima).
+    // Nome da empresa e colaboradores não são mais hardcoded aqui — vêm de /empresa-info-publico
+    // (ver carregarEmpresaInfo()).
+    const EMPRESA_SLUG = (() => {
+      const slugQuery = new URLSearchParams(location.search).get("slug");
+      if (slugQuery) return slugQuery;
+      const partesHost = location.hostname.split(".");
+      if (partesHost.length >= 3 && partesHost[0] === "agenda") return partesHost[1];
+      return "boot-n8n";
+    })();
   </script>
 
   <div class="max-w-md mx-auto min-h-screen bg-white shadow-xl flex flex-col">
@@ -57,7 +67,7 @@
         <div class="w-11 h-11 rounded-full bg-gold flex items-center justify-center font-bold text-black text-lg">✂
         </div>
         <div>
-          <h1 class="text-lg font-semibold leading-tight" id="nomeSalaoHeader">Salão Elegance</h1>
+          <h1 class="text-lg font-semibold leading-tight" id="nomeEmpresaHeader">Studio Elegance</h1>
           <p class="text-xs text-gray-300">Agende seu horário em segundos</p>
         </div>
       </div>
@@ -74,10 +84,10 @@
         </select>
       </section>
 
-      <!-- Passo 2: Cabeleireiro -->
+      <!-- Passo 2: Colaborador -->
       <section>
-        <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">2. Escolha o cabeleireiro</h2>
-        <div id="listaCabeleireiros" class="flex flex-wrap gap-2"></div>
+        <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">2. Escolha o colaborador</h2>
+        <div id="listaColaboradores" class="flex flex-wrap gap-2"></div>
       </section>
 
       <!-- Passo 3: Data -->
@@ -131,16 +141,16 @@
     (function () {
       const estado = {
         servicos: [],
-        cabeleireiros: [],
+        colaboradores: [],
         servicoSelecionado: null,
-        cabeleireiroSelecionado: null,
+        colaboradorSelecionado: null,
         data: null,
         horaSelecionada: null
       };
 
       const el = {
         selectServico: document.getElementById('selectServico'),
-        listaCabeleireiros: document.getElementById('listaCabeleireiros'),
+        listaColaboradores: document.getElementById('listaColaboradores'),
         inputData: document.getElementById('inputData'),
         gradeHorarios: document.getElementById('gradeHorarios'),
         inputNome: document.getElementById('inputNome'),
@@ -185,17 +195,17 @@
         el.modalOverlay.classList.remove('flex');
       });
 
-      // ---- Dados da empresa (nome + cabeleireiros) ----
+      // ---- Dados da empresa (nome + colaboradores) ----
       async function carregarEmpresaInfo() {
         try {
           const resp = await fetch(`${N8N_BASE_URL}/empresa-info-publico?slug=${encodeURIComponent(EMPRESA_SLUG)}`);
           const dados = await resp.json();
-          document.getElementById('nomeSalaoHeader').textContent = dados.nome || 'Agendamento Online';
-          estado.cabeleireiros = dados.cabeleireiros || [];
+          document.getElementById('nomeEmpresaHeader').textContent = dados.nome || 'Agendamento Online';
+          estado.colaboradores = dados.colaboradores || [];
         } catch (err) {
-          document.getElementById('nomeSalaoHeader').textContent = 'Agendamento Online';
+          document.getElementById('nomeEmpresaHeader').textContent = 'Agendamento Online';
         } finally {
-          renderizarCabeleireiros();
+          renderizarColaboradores();
         }
       }
 
@@ -227,32 +237,32 @@
         estado.servicoSelecionado = idx === '' ? null : estado.servicos[idx];
         estado.horaSelecionada = null;
         atualizarResumo();
-        if (estado.servicoSelecionado && estado.data && estado.cabeleireiroSelecionado) {
+        if (estado.servicoSelecionado && estado.data && estado.colaboradorSelecionado) {
           carregarHorariosDisponiveis(estado.data);
         }
       });
 
-      // ---- Passo 2: Cabeleireiro (agenda por profissional) ----
-      function renderizarCabeleireiros() {
-        el.listaCabeleireiros.innerHTML = '';
-        if (!estado.cabeleireiros.length) {
-          el.listaCabeleireiros.innerHTML = '<p class="text-sm text-gray-400">Nenhum cabeleireiro disponível.</p>';
+      // ---- Passo 2: Colaborador (agenda por profissional) ----
+      function renderizarColaboradores() {
+        el.listaColaboradores.innerHTML = '';
+        if (!estado.colaboradores.length) {
+          el.listaColaboradores.innerHTML = '<p class="text-sm text-gray-400">Nenhum colaborador disponível.</p>';
           return;
         }
-        estado.cabeleireiros.forEach((nome) => {
+        estado.colaboradores.forEach((nome) => {
           const btn = document.createElement('button');
           btn.type = 'button';
           btn.textContent = nome;
           btn.className = 'border-2 rounded-full px-4 py-2 text-sm font-medium transition border-gray-200 hover:border-gold';
           btn.addEventListener('click', () => {
-            estado.cabeleireiroSelecionado = nome;
-            [...el.listaCabeleireiros.children].forEach(b => b.classList.remove('bg-black', 'text-white', 'border-black'));
+            estado.colaboradorSelecionado = nome;
+            [...el.listaColaboradores.children].forEach(b => b.classList.remove('bg-black', 'text-white', 'border-black'));
             btn.classList.add('bg-black', 'text-white', 'border-black');
             estado.horaSelecionada = null;
             atualizarResumo();
             if (estado.servicoSelecionado && estado.data) carregarHorariosDisponiveis(estado.data);
           });
-          el.listaCabeleireiros.appendChild(btn);
+          el.listaColaboradores.appendChild(btn);
         });
       }
 
@@ -261,25 +271,25 @@
         estado.data = e.target.value;
         estado.horaSelecionada = null;
         atualizarResumo();
-        if (estado.data && estado.servicoSelecionado && estado.cabeleireiroSelecionado) {
+        if (estado.data && estado.servicoSelecionado && estado.colaboradorSelecionado) {
           carregarHorariosDisponiveis(estado.data);
         }
       });
 
-      // ---- Passo 4: Horários disponíveis (dependem do cabeleireiro escolhido) ----
+      // ---- Passo 4: Horários disponíveis (dependem do colaborador escolhido) ----
       async function carregarHorariosDisponiveis(data) {
         if (!estado.servicoSelecionado) {
           el.gradeHorarios.innerHTML = '<div class="col-span-4 text-sm text-gray-400">Escolha um serviço primeiro.</div>';
           return;
         }
-        if (!estado.cabeleireiroSelecionado) {
-          el.gradeHorarios.innerHTML = '<div class="col-span-4 text-sm text-gray-400">Escolha um cabeleireiro primeiro.</div>';
+        if (!estado.colaboradorSelecionado) {
+          el.gradeHorarios.innerHTML = '<div class="col-span-4 text-sm text-gray-400">Escolha um colaborador primeiro.</div>';
           return;
         }
         el.gradeHorarios.innerHTML = '<div class="col-span-4 text-sm text-gray-400">Carregando horários...</div>';
         try {
           const duracao = estado.servicoSelecionado.duracao_minutos;
-          const url = `${N8N_BASE_URL}/horarios-disponiveis?slug=${encodeURIComponent(EMPRESA_SLUG)}&data=${encodeURIComponent(data)}&duracao=${duracao}&cabeleireiro=${encodeURIComponent(estado.cabeleireiroSelecionado)}`;
+          const url = `${N8N_BASE_URL}/horarios-disponiveis?slug=${encodeURIComponent(EMPRESA_SLUG)}&data=${encodeURIComponent(data)}&duracao=${duracao}&colaborador=${encodeURIComponent(estado.colaboradorSelecionado)}`;
           const resp = await fetch(url);
           const dados = await resp.json();
           renderizarHorarios(dados.horarios_disponiveis || []);
@@ -312,7 +322,7 @@
       function atualizarResumo() {
         if (estado.servicoSelecionado && estado.data && estado.horaSelecionada) {
           el.resumoSelecao.textContent =
-            `${estado.servicoSelecionado.nome} • ${estado.cabeleireiroSelecionado} • ${estado.data.split('-').reverse().join('/')} às ${estado.horaSelecionada} • ${formatarMoeda(estado.servicoSelecionado.preco)}`;
+            `${estado.servicoSelecionado.nome} • ${estado.colaboradorSelecionado} • ${estado.data.split('-').reverse().join('/')} às ${estado.horaSelecionada} • ${formatarMoeda(estado.servicoSelecionado.preco)}`;
           el.resumoSelecao.classList.remove('hidden');
         } else {
           el.resumoSelecao.classList.add('hidden');
@@ -325,7 +335,7 @@
         const whatsapp = el.inputWhatsapp.value.replace(/\D/g, '');
 
         if (!estado.servicoSelecionado) return abrirModal({ sucesso: false, titulo: 'Falta escolher o serviço', mensagem: 'Selecione um serviço antes de confirmar.' });
-        if (!estado.cabeleireiroSelecionado) return abrirModal({ sucesso: false, titulo: 'Falta escolher o cabeleireiro', mensagem: 'Selecione o profissional antes de confirmar.' });
+        if (!estado.colaboradorSelecionado) return abrirModal({ sucesso: false, titulo: 'Falta escolher o colaborador', mensagem: 'Selecione o profissional antes de confirmar.' });
         if (!estado.data) return abrirModal({ sucesso: false, titulo: 'Falta escolher a data', mensagem: 'Selecione a data do agendamento.' });
         if (!estado.horaSelecionada) return abrirModal({ sucesso: false, titulo: 'Falta escolher o horário', mensagem: 'Selecione um horário disponível.' });
         if (!nome) return abrirModal({ sucesso: false, titulo: 'Nome obrigatório', mensagem: 'Informe seu nome completo.' });
@@ -339,7 +349,7 @@
             servico: estado.servicoSelecionado.nome,
             preco: estado.servicoSelecionado.preco,
             duracao_minutos: estado.servicoSelecionado.duracao_minutos,
-            cabeleireiro: estado.cabeleireiroSelecionado,
+            colaborador: estado.colaboradorSelecionado,
             data: estado.data,
             hora: estado.horaSelecionada
           }

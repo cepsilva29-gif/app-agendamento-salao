@@ -107,7 +107,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Valida o payload recebido do app do cliente\nconst body = $('Webhook').first().json.body || {};\nconst cliente = body.cliente || {};\nconst ag = body.agendamento || {};\n\nconst erros = [];\nif (!cliente.nome || !String(cliente.nome).trim()) erros.push('nome');\nif (!cliente.whatsapp || !/^\\d{10,13}$/.test(String(cliente.whatsapp).replace(/\\D/g, ''))) erros.push('whatsapp');\nif (!ag.servico) erros.push('servico');\nif (!ag.cabeleireiro || !String(ag.cabeleireiro).trim()) erros.push('cabeleireiro');\nif (!ag.data || !/^\\d{4}-\\d{2}-\\d{2}$/.test(ag.data)) erros.push('data');\nif (!ag.hora || !/^\\d{2}:\\d{2}$/.test(ag.hora)) erros.push('hora');\n\nif (erros.length) {\n  return [{\n    json: {\n      valido: false,\n      status: 400,\n      erro: 'Campos invalidos ou ausentes: ' + erros.join(', ')\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    valido: true,\n    empresa_id: $('Checar Empresa').first().json.empresa_id,\n    id: 'AG-' + Date.now(),\n    nome: String(cliente.nome).trim(),\n    whatsapp: String(cliente.whatsapp).replace(/\\D/g, ''),\n    servico: ag.servico,\n    preco: Number(ag.preco) || 0,\n    duracao_minutos: Number(ag.duracao_minutos) || 30,\n    cabeleireiro: String(ag.cabeleireiro).trim(),\n    data: ag.data,\n    hora: ag.hora,\n    status: 'Confirmado',\n    criado_em: new Date().toISOString(),\n    lembrete_enviado: false\n  }\n}];"
+        "jsCode": "// Valida o payload recebido do app do cliente\nconst body = $('Webhook').first().json.body || {};\nconst cliente = body.cliente || {};\nconst ag = body.agendamento || {};\n\nconst erros = [];\nif (!cliente.nome || !String(cliente.nome).trim()) erros.push('nome');\nif (!cliente.whatsapp || !/^\\d{10,13}$/.test(String(cliente.whatsapp).replace(/\\D/g, ''))) erros.push('whatsapp');\nif (!ag.servico) erros.push('servico');\nif (!ag.colaborador || !String(ag.colaborador).trim()) erros.push('colaborador');\nif (!ag.data || !/^\\d{4}-\\d{2}-\\d{2}$/.test(ag.data)) erros.push('data');\nif (!ag.hora || !/^\\d{2}:\\d{2}$/.test(ag.hora)) erros.push('hora');\n\nif (erros.length) {\n  return [{\n    json: {\n      valido: false,\n      status: 400,\n      erro: 'Campos invalidos ou ausentes: ' + erros.join(', ')\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    valido: true,\n    empresa_id: $('Checar Empresa').first().json.empresa_id,\n    id: 'AG-' + Date.now(),\n    nome: String(cliente.nome).trim(),\n    whatsapp: String(cliente.whatsapp).replace(/\\D/g, ''),\n    servico: ag.servico,\n    preco: Number(ag.preco) || 0,\n    duracao_minutos: Number(ag.duracao_minutos) || 30,\n    colaborador: String(ag.colaborador).trim(),\n    data: ag.data,\n    hora: ag.hora,\n    status: 'Confirmado',\n    criado_em: new Date().toISOString(),\n    lembrete_enviado: false\n  }\n}];"
       },
       "id": "dce46778-3f80-4723-9937-2bde085d1255",
       "name": "Validar Dados",
@@ -242,9 +242,9 @@
         "filters": {
           "conditions": [
             {
-              "keyName": "cabeleireiro",
+              "keyName": "colaborador",
               "condition": "eq",
-              "keyValue": "={{ $('Aplicar Preco Do Catalogo').first().json.cabeleireiro }}"
+              "keyValue": "={{ $('Aplicar Preco Do Catalogo').first().json.colaborador }}"
             },
             {
               "keyName": "empresa_id",
@@ -279,9 +279,9 @@
         "filters": {
           "conditions": [
             {
-              "keyName": "cabeleireiro",
+              "keyName": "colaborador",
               "condition": "eq",
-              "keyValue": "={{ $('Aplicar Preco Do Catalogo').first().json.cabeleireiro }}"
+              "keyValue": "={{ $('Aplicar Preco Do Catalogo').first().json.colaborador }}"
             },
             {
               "keyName": "empresa_id",
@@ -310,7 +310,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Verifica se o novo horario colide com algum agendamento ja confirmado DO MESMO cabeleireiro\n// (agenda por profissional: dois clientes podem marcar o mesmo horario com pessoas diferentes)\n// ou com um bloqueio de agenda criado pelo admin (folga/ferias/etc) para o mesmo cabeleireiro/data.\n// As duas queries ao Supabase ja filtraram por cabeleireiro+empresa; aqui filtra por data+status e calcula a sobreposicao.\nconst novo = $('Aplicar Preco Do Catalogo').first().json;\n\nconst toMinutos = (hhmm) => {\n  const [h, m] = String(hhmm).split(':').map(Number);\n  return h * 60 + m;\n};\n\nconst inicioNovo = toMinutos(novo.hora);\nconst fimNovo = inicioNovo + novo.duracao_minutos;\n\nconst existentes = $('Ler Agendamentos Existentes (Supabase)').all()\n  .map(i => i.json)\n  .filter(row => row && row.hora && row.data === novo.data && row.status !== 'Cancelado');\n\nconst conflitoAgendamento = existentes.some(row => {\n  const inicio = toMinutos(row.hora);\n  const fim = inicio + (Number(row.duracao_minutos) || 30);\n  return inicio < fimNovo && fim > inicioNovo;\n});\n\nconst bloqueios = $('Ler Bloqueios Ativos (Supabase)').all()\n  .map(i => i.json)\n  .filter(row => row && row.data === novo.data && row.status === 'Ativo');\n\nconst bloqueioDiaInteiro = bloqueios.some(b => !b.hora_inicio && !b.hora_fim);\n\nconst conflitoBloqueio = bloqueioDiaInteiro || bloqueios.some(b => {\n  if (!b.hora_inicio || !b.hora_fim) return false;\n  const inicio = toMinutos(b.hora_inicio);\n  const fim = toMinutos(b.hora_fim);\n  return inicio < fimNovo && fim > inicioNovo;\n});\n\nreturn [{ json: { ...novo, conflito: conflitoAgendamento || conflitoBloqueio } }];"
+        "jsCode": "// Verifica se o novo horario colide com algum agendamento ja confirmado DO MESMO colaborador\n// (agenda por profissional: dois clientes podem marcar o mesmo horario com pessoas diferentes)\n// ou com um bloqueio de agenda criado pelo admin (folga/ferias/etc) para o mesmo colaborador/data.\n// As duas queries ao Supabase ja filtraram por colaborador+empresa; aqui filtra por data+status e calcula a sobreposicao.\nconst novo = $('Aplicar Preco Do Catalogo').first().json;\n\nconst toMinutos = (hhmm) => {\n  const [h, m] = String(hhmm).split(':').map(Number);\n  return h * 60 + m;\n};\n\nconst inicioNovo = toMinutos(novo.hora);\nconst fimNovo = inicioNovo + novo.duracao_minutos;\n\nconst existentes = $('Ler Agendamentos Existentes (Supabase)').all()\n  .map(i => i.json)\n  .filter(row => row && row.hora && row.data === novo.data && row.status !== 'Cancelado');\n\nconst conflitoAgendamento = existentes.some(row => {\n  const inicio = toMinutos(row.hora);\n  const fim = inicio + (Number(row.duracao_minutos) || 30);\n  return inicio < fimNovo && fim > inicioNovo;\n});\n\nconst bloqueios = $('Ler Bloqueios Ativos (Supabase)').all()\n  .map(i => i.json)\n  .filter(row => row && row.data === novo.data && row.status === 'Ativo');\n\nconst bloqueioDiaInteiro = bloqueios.some(b => !b.hora_inicio && !b.hora_fim);\n\nconst conflitoBloqueio = bloqueioDiaInteiro || bloqueios.some(b => {\n  if (!b.hora_inicio || !b.hora_fim) return false;\n  const inicio = toMinutos(b.hora_inicio);\n  const fim = toMinutos(b.hora_fim);\n  return inicio < fimNovo && fim > inicioNovo;\n});\n\nreturn [{ json: { ...novo, conflito: conflitoAgendamento || conflitoBloqueio } }];"
       },
       "id": "b02e685a-8fdc-4925-bac0-f394e227f965",
       "name": "Checar Conflito",
@@ -388,8 +388,8 @@
               "fieldValue": "={{ $json.duracao_minutos }}"
             },
             {
-              "fieldId": "cabeleireiro",
-              "fieldValue": "={{ $json.cabeleireiro }}"
+              "fieldId": "colaborador",
+              "fieldValue": "={{ $json.colaborador }}"
             },
             {
               "fieldId": "data",
@@ -560,7 +560,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { \"sucesso\": false, \"mensagem\": \"Salao nao encontrado.\" } }}",
+        "responseBody": "={{ { \"sucesso\": false, \"mensagem\": \"Empresa nao encontrada.\" } }}",
         "options": {
           "responseHeaders": {
             "entries": [

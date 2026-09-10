@@ -32,12 +32,12 @@
 
 create table if not exists empresas (
   id                 bigint generated always as identity primary key,
-  slug               text not null unique,          -- usado no path dos webhooks publicos, ex: 'salao-da-ana'
+  slug               text not null unique,          -- usado no path dos webhooks publicos, ex: 'empresa-da-ana'
   nome               text not null,
   whatsapp_admin     text not null,                  -- notificado a cada novo agendamento
   evolution_instance text not null unique,           -- nome da instancia na Evolution API
   timezone           text not null default 'America/Sao_Paulo',
-  cabeleireiros      jsonb not null default '[]',    -- ["Carlos","Ana","Bruno"], substitui o hardcode nos frontends
+  colaboradores      jsonb not null default '[]',    -- ["Carlos","Ana","Bruno"], substitui o hardcode nos frontends
   ativo              boolean not null default true,
   criado_em          timestamptz not null default now()
 );
@@ -68,7 +68,7 @@ create table if not exists agendamentos (
   servico          text not null,                     -- nome do serviço no momento da reserva (preco/duracao já travados do catálogo)
   preco            numeric(10,2) not null,
   duracao_minutos  integer not null,
-  cabeleireiro     text not null,
+  colaborador      text not null,
   data             date not null,
   hora             text not null check (hora ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'),
   status           text not null default 'Confirmado' check (status in ('Confirmado','Cancelado','Finalizado')),
@@ -76,14 +76,13 @@ create table if not exists agendamentos (
   lembrete_enviado boolean not null default false
 );
 
-create index if not exists idx_agendamentos_empresa_cabeleireiro_data_status on agendamentos (empresa_id, cabeleireiro, data, status);
 create index if not exists idx_agendamentos_empresa_data on agendamentos (empresa_id, data);
 create index if not exists idx_agendamentos_whatsapp on agendamentos (whatsapp);
 
 create table if not exists bloqueios (
   id            text primary key,                     -- 'BQ-<timestamp_ms>'
   empresa_id    bigint not null references empresas(id) on delete cascade,
-  cabeleireiro  text not null,
+  colaborador   text not null,
   data          date not null,
   hora_inicio   text check (hora_inicio is null or hora_inicio ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'),
   hora_fim      text check (hora_fim is null or hora_fim ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'),
@@ -93,8 +92,6 @@ create table if not exists bloqueios (
 );
 -- hora_inicio/hora_fim NULL (nao '') = bloqueio de dia inteiro. As checagens em JS
 -- (`!row.hora_inicio`) tratam null e string vazia da mesma forma, entao isso e compativel.
-
-create index if not exists idx_bloqueios_empresa_cabeleireiro_data_status on bloqueios (empresa_id, cabeleireiro, data, status);
 
 -- Migração para instalações que já tinham servicos/agendamentos/bloqueios de um deploy
 -- single-tenant anterior (os `create table if not exists` acima não alteram tabelas já
@@ -117,6 +114,30 @@ drop index if exists idx_agendamentos_cabeleireiro_data_status;
 drop index if exists idx_agendamentos_data;
 drop index if exists idx_bloqueios_cabeleireiro_data_status;
 
+-- Migração para instalações que já tinham as colunas com o nome antigo "cabeleireiro(s)" (rename
+-- de terminologia para "colaborador(es)"). Guardado por information_schema: sem efeito numa
+-- instalação nova, onde as colunas já nascem com o nome novo pelos CREATE TABLE acima.
+do $$
+begin
+  if exists (select 1 from information_schema.columns where table_name = 'agendamentos' and column_name = 'cabeleireiro') then
+    alter table agendamentos rename column cabeleireiro to colaborador;
+  end if;
+  if exists (select 1 from information_schema.columns where table_name = 'bloqueios' and column_name = 'cabeleireiro') then
+    alter table bloqueios rename column cabeleireiro to colaborador;
+  end if;
+  if exists (select 1 from information_schema.columns where table_name = 'empresas' and column_name = 'cabeleireiros') then
+    alter table empresas rename column cabeleireiros to colaboradores;
+  end if;
+end $$;
+
+alter index if exists idx_agendamentos_empresa_cabeleireiro_data_status rename to idx_agendamentos_empresa_colaborador_data_status;
+alter index if exists idx_bloqueios_empresa_cabeleireiro_data_status rename to idx_bloqueios_empresa_colaborador_data_status;
+
+-- Criados aqui (não junto das CREATE TABLE acima) porque dependem da coluna já se chamar
+-- "colaborador" — numa instalação existente isso só passa a ser verdade depois do rename acima.
+create index if not exists idx_agendamentos_empresa_colaborador_data_status on agendamentos (empresa_id, colaborador, data, status);
+create index if not exists idx_bloqueios_empresa_colaborador_data_status on bloqueios (empresa_id, colaborador, data, status);
+
 -- Resolve a empresa do usuário logado a partir do JWT (auth.uid()). security definer porque
 -- `perfis` também tem RLS habilitado — sem isso a função não conseguiria nem ler a própria linha.
 create or replace function public.empresa_atual()
@@ -130,7 +151,7 @@ as $$
 $$;
 
 -- Provisiona empresa + perfil automaticamente no signup (supabase.auth.signUp com
--- options.data = { slug, nome_empresa, whatsapp_admin, cabeleireiros }). Ver
+-- options.data = { slug, nome_empresa, whatsapp_admin, colaboradores }). Ver
 -- frontend-admin/index.html (tela de cadastro) para quem preenche esse metadata.
 create or replace function public.handle_new_user()
 returns trigger
@@ -141,13 +162,13 @@ as $$
 declare
   v_empresa_id bigint;
 begin
-  insert into empresas (slug, nome, whatsapp_admin, evolution_instance, cabeleireiros)
+  insert into empresas (slug, nome, whatsapp_admin, evolution_instance, colaboradores)
   values (
     new.raw_user_meta_data->>'slug',
     new.raw_user_meta_data->>'nome_empresa',
     new.raw_user_meta_data->>'whatsapp_admin',
     new.raw_user_meta_data->>'slug', -- 1 instancia Evolution por empresa; nome da instancia = slug
-    coalesce(new.raw_user_meta_data->'cabeleireiros', '[]'::jsonb)
+    coalesce(new.raw_user_meta_data->'colaboradores', '[]'::jsonb)
   )
   returning id into v_empresa_id;
 
@@ -211,7 +232,7 @@ create policy "perfis_select_own" on perfis
   using (user_id = auth.uid());
 
 -- empresas: cada usuário só enxerga/edita a própria empresa (via perfis). O n8n (workflow 11,
--- endpoint /atualizar-cabeleireiros) só monta o PATCH com o campo `cabeleireiros` — a policy
+-- endpoint /atualizar-colaboradores) só monta o PATCH com o campo `colaboradores` — a policy
 -- por si só permitiria editar qualquer coluna da própria linha (nome/slug/etc.), mas isso não é
 -- exposto por nenhum endpoint hoje.
 drop policy if exists "empresas_select_own" on empresas;
@@ -246,7 +267,7 @@ create policy "bloqueios_all_own_empresa" on bloqueios
   with check (empresa_id = public.empresa_atual());
 
 -- Seed opcional pra testar localmente (troque <EMPRESA_ID> pelo id gerado no signup da empresa
--- de teste, e edite os serviços conforme o catálogo real do salão — mesmos 4 exemplos já
+-- de teste, e edite os serviços conforme o catálogo real da empresa — mesmos 4 exemplos já
 -- documentados em docs/google-sheets-schema.md):
 -- insert into servicos (empresa_id, nome, preco, duracao_minutos, ativo) values
 --   (<EMPRESA_ID>, 'Corte Masculino', 50, 30, true),

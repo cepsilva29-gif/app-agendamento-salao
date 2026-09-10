@@ -34,7 +34,7 @@ com as pastas do repositório: `frontend-admin/` e `frontend-agenda/`.
 ## 1. Criar o projeto Supabase
 
 Este é um deploy **multi-tenant**: uma instalação atende várias empresas (salões), cada uma
-isolada por Row Level Security. Não existe mais um catálogo/agenda "do salão" fixo — cada empresa
+isolada por Row Level Security. Não existe mais um catálogo/agenda "da empresa" fixo — cada empresa
 se cadastra pelo próprio painel admin (ver passo 8.1) e o Postgres separa os dados
 automaticamente por `empresa_id`.
 
@@ -50,7 +50,7 @@ automaticamente por `empresa_id`.
    simplicidade em teste, desative "Confirm email" em **Authentication → Settings**.
 4. Em **Project Settings → API**, anote a **Project URL**, a chave **anon/public** e a chave
    **service_role** — vai precisar das três nos passos 5 e 8 abaixo. Não precisa cadastrar
-   catálogo nenhum aqui manualmente: cada dono de salão cadastra os próprios serviços depois,
+   catálogo nenhum aqui manualmente: cada dono de empresa cadastra os próprios serviços depois,
    pelo painel admin (aba "Serviços" — criar, editar preço/duração e ativar/desativar), via o
    workflow `12-servicos-admin-supabase`.
 
@@ -165,8 +165,8 @@ cada empresa cadastrada (passo 8.1):
 
 ### 8.1 Cadastro self-service (painel admin)
 
-Não há mais um "salão fixo" pré-configurado: cada dono de salão se cadastra pelo próprio
-`frontend-admin` (tela "Cadastrar salão" — nome, slug, WhatsApp, e-mail, senha). O cadastro já
+Não há mais uma "empresa fixa" pré-configurada: cada dono de empresa se cadastra pelo próprio
+`frontend-admin` (tela "Cadastrar empresa" — nome, slug, WhatsApp, e-mail, senha). O cadastro já
 cria a empresa e o perfil automaticamente (trigger `handle_new_user`, passo 1.2). Depois de
 cadastrada, use o **slug** escolhido para: nomear a instância Evolution (passo 7), configurar o
 domínio do `frontend_agenda` dessa empresa (abaixo), e como valor de `EMPRESA_SLUG` no
@@ -200,11 +200,11 @@ mudança.
 
 ## 9. Testar de ponta a ponta
 
-1. Abra `https://admin.SEUDOMINIO`, cadastre uma empresa de teste (aba "Cadastrar salão") e
+1. Abra `https://admin.SEUDOMINIO`, cadastre uma empresa de teste (aba "Cadastrar empresa") e
    confirme que o dashboard carrega vazio depois do login.
 2. No Supabase, confira **Table Editor → empresas** e **perfis** e veja se as linhas foram
    criadas pelo trigger. No painel admin, aba "Serviços", cadastre 1-2 serviços de teste.
-3. Abra a URL do `frontend-agenda` dessa empresa (passo 8.2), escolha um serviço, cabeleireiro,
+3. Abra a URL do `frontend-agenda` dessa empresa (passo 8.2), escolha um serviço, colaborador,
    data e horário, confirme com um WhatsApp válido (o seu, para teste) e crie o agendamento.
 4. No Supabase, confira **Table Editor → agendamentos** e veja se a linha apareceu com o
    `empresa_id` certo.

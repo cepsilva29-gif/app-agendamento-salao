@@ -32,12 +32,12 @@ Nova tabela `empresas`:
 ```sql
 create table empresas (
   id                 bigint generated always as identity primary key,
-  slug               text not null unique,        -- usado na URL/subdominio, ex: 'salao-da-ana'
+  slug               text not null unique,        -- usado na URL/subdominio, ex: 'empresa-da-ana'
   nome               text not null,
   whatsapp_admin     text not null,                -- notificado a cada novo agendamento
   evolution_instance text not null unique,         -- nome da instancia na Evolution API
   timezone           text not null default 'America/Sao_Paulo',
-  cabeleireiros      jsonb not null default '[]',  -- ["Carlos","Ana","Bruno"], substitui o hardcode no frontend
+  colaboradores      jsonb not null default '[]',  -- ["Carlos","Ana","Bruno"], substitui o hardcode no frontend
   ativo              boolean not null default true,
   criado_em          timestamptz not null default now()
 );
@@ -46,8 +46,8 @@ create table empresas (
 Nas 3 tabelas existentes, adicionar `empresa_id bigint not null references empresas(id)` e:
 
 - trocar `servicos.nome unique` por `unique (empresa_id, nome)`.
-- todo índice/filtro que hoje é por `cabeleireiro`/`data`/`status` passa a levar `empresa_id`
-  junto (ex: `idx_agendamentos_empresa_cabeleireiro_data_status`).
+- todo índice/filtro que hoje é por `colaborador`/`data`/`status` passa a levar `empresa_id`
+  junto (ex: `idx_agendamentos_empresa_colaborador_data_status`).
 - RLS: já está habilitado nas 3 tabelas sem policy (o n8n usa a `service_role` key, que ignora
   RLS). Isso continua valendo — o isolamento entre empresas não vem do RLS, vem de **todo
   workflow sempre filtrar por `empresa_id` resolvido no início da execução** (ver Peça 3). Vale
@@ -58,11 +58,11 @@ Nas 3 tabelas existentes, adicionar `empresa_id bigint not null references empre
 
 Duas opções, ambas viáveis:
 
-1. **Subdomínio** (`agenda.salao-da-ana.seudominio.com`, `admin.salao-da-ana.seudominio.com`) —
+1. **Subdomínio** (`agenda.empresa-da-ana.seudominio.com`, `admin.empresa-da-ana.seudominio.com`) —
    mais amigável pro cliente final, mas exige DNS wildcard (`*.seudominio.com`) + certificado
    wildcard, e cada frontend precisa extrair o slug de `location.hostname` no lugar do
    `NOME_SALAO`/`CABELEIREIROS` hardcoded hoje.
-2. **Prefixo no path do webhook** (`/webhook/salao-da-ana/criar-agendamento`) — mais simples de
+2. **Prefixo no path do webhook** (`/webhook/empresa-da-ana/criar-agendamento`) — mais simples de
    configurar (sem DNS extra), mas menos "profissional" pro cliente final e exige que o frontend
    saiba seu próprio slug (via build/config, já que não tem mais domínio próprio pra descobrir
    sozinho).
@@ -104,7 +104,7 @@ do n8n (o payload já traz `instance`, usado pra resolver a empresa — ver Peç
 
 Com a Opção B (workflows compartilhados), dar alta a uma empresa nova vira:
 
-1. Inserir a linha em `empresas` (slug, nome, whatsapp_admin, cabeleireiros).
+1. Inserir a linha em `empresas` (slug, nome, whatsapp_admin, colaboradores).
 2. Criar a instância Evolution correspondente e conectar o WhatsApp (escanear QR).
 3. Cadastrar o catálogo de serviços dela em `servicos` (com o `empresa_id` certo).
 4. Apontar `agenda.<slug>` / `admin.<slug>` no Caddy/Easypanel pro mesmo par de containers de

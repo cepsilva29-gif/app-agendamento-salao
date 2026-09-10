@@ -282,7 +282,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Opcao 1: reenvia o link do app para agendar (cada empresa tem seu proprio subdominio de agenda)\nconst dominio = $env.DOMAIN || 'seusalao.com.br';\nconst slug = $('Checar Empresa').first().json.slug;\nconst resposta = 'Para agendar, acesse: https://agenda-' + slug + '.' + dominio + '\\nEscolha o serviço, o cabeleireiro, a data e o horário direto por lá! 💈';\nreturn [{ json: { numero: $('Extrair Mensagem').first().json.numero, resposta } }];"
+        "jsCode": "// Opcao 1: reenvia o link do app para agendar (cada empresa tem seu proprio subdominio de agenda)\nconst dominio = $env.DOMAIN || 'suaempresa.com.br';\nconst slug = $('Checar Empresa').first().json.slug;\nconst resposta = 'Para agendar, acesse: https://agenda-' + slug + '.' + dominio + '\\nEscolha o serviço, o colaborador, a data e o horário direto por lá! 💈';\nreturn [{ json: { numero: $('Extrair Mensagem').first().json.numero, resposta } }];"
       },
       "id": "s07-code-resposta-agendar",
       "name": "Montar Resposta Agendar",
@@ -295,7 +295,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Nenhuma opcao reconhecida (primeiro contato ou mensagem fora do menu): mostra o menu numerado\nconst nomeSalao = $('Checar Empresa').first().json.nome || 'nosso salão';\nconst resposta = 'Olá! 👋 Sou o assistente virtual do ' + nomeSalao + '.\\n\\nEscolha uma opção e responda só com o número:\\n\\n*1* - Agendar um horário\\n*2* - Cancelar um agendamento\\n*3* - Ver o status do meu agendamento';\nreturn [{ json: { numero: $('Extrair Mensagem').first().json.numero, resposta } }];"
+        "jsCode": "// Nenhuma opcao reconhecida (primeiro contato ou mensagem fora do menu): mostra o menu numerado\nconst nomeEmpresa = $('Checar Empresa').first().json.nome || 'nossa empresa';\nconst resposta = 'Olá! 👋 Sou o assistente virtual do ' + nomeEmpresa + '.\\n\\nEscolha uma opção e responda só com o número:\\n\\n*1* - Agendar um horário\\n*2* - Cancelar um agendamento\\n*3* - Ver o status do meu agendamento';\nreturn [{ json: { numero: $('Extrair Mensagem').first().json.numero, resposta } }];"
       },
       "id": "s07-code-resposta-menu",
       "name": "Montar Resposta Menu",
@@ -432,7 +432,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Confirma para o cliente que o cancelamento foi feito\nconst r = $('Localizar Agendamento do Cliente').item.json;\nconst resposta = `Pronto, ${r.nome}! Seu agendamento de ${r.servico} no dia ${r.data} às ${r.hora} foi cancelado. Se quiser reagendar, é só acessar o app do salão.`;\nreturn [{ json: { numero: r.whatsapp, resposta } }];"
+        "jsCode": "// Confirma para o cliente que o cancelamento foi feito\nconst r = $('Localizar Agendamento do Cliente').item.json;\nconst resposta = `Pronto, ${r.nome}! Seu agendamento de ${r.servico} no dia ${r.data} às ${r.hora} foi cancelado. Se quiser reagendar, é só acessar o app da empresa.`;\nreturn [{ json: { numero: r.whatsapp, resposta } }];"
       },
       "id": "s07-code-resposta-ok",
       "name": "Montar Resposta Cancelamento OK",
@@ -445,7 +445,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Nao achou nenhum agendamento confirmado, ou achou mais de um -> pede para o cliente esclarecer\nconst dominio = $env.DOMAIN || 'seusalao.com.br';\nconst slug = $('Checar Empresa').first().json.slug;\nlet resposta;\n\nif ($json.motivo === 'multiplos') {\n  resposta = 'Você tem mais de um agendamento confirmado:\\n' + $json.lista + '\\n\\nAcesse https://agenda-' + slug + '.' + dominio + ' ou fale com a gente informando qual horário deseja cancelar.';\n} else {\n  resposta = 'Não encontrei nenhum agendamento confirmado com este número. Se preferir, acesse https://agenda-' + slug + '.' + dominio + ' para conferir seus horários.';\n}\n\nreturn [{ json: { numero: $json.numero, resposta } }];"
+        "jsCode": "// Nao achou nenhum agendamento confirmado, ou achou mais de um -> pede para o cliente esclarecer\nconst dominio = $env.DOMAIN || 'suaempresa.com.br';\nconst slug = $('Checar Empresa').first().json.slug;\nlet resposta;\n\nif ($json.motivo === 'multiplos') {\n  resposta = 'Você tem mais de um agendamento confirmado:\\n' + $json.lista + '\\n\\nAcesse https://agenda-' + slug + '.' + dominio + ' ou fale com a gente informando qual horário deseja cancelar.';\n} else {\n  resposta = 'Não encontrei nenhum agendamento confirmado com este número. Se preferir, acesse https://agenda-' + slug + '.' + dominio + ' para conferir seus horários.';\n}\n\nreturn [{ json: { numero: $json.numero, resposta } }];"
       },
       "id": "s07-code-resposta-nao-encontrado",
       "name": "Montar Resposta Nao Encontrado",
@@ -497,7 +497,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Opcao 3: mostra os agendamentos ativos (Confirmado ou Finalizado) do numero que esta escrevendo\n// A query ao Supabase ja filtrou por status!=Cancelado+empresa; aqui so localiza pelo numero de quem escreveu\nconst numeroCliente = $('Extrair Mensagem').first().json.numero;\nconst linhas = $input.all().map(i => i.json);\n\nfunction normaliza(tel) {\n  return String(tel || '').replace(/\\D/g, '').slice(-11);\n}\n\nconst alvo = normaliza(numeroCliente);\nconst agendamentos = linhas\n  .filter(r => r && normaliza(r.whatsapp) === alvo)\n  .sort((a, b) => String(a.data + a.hora).localeCompare(String(b.data + b.hora)));\n\nif (agendamentos.length === 0) {\n  return [{ json: { numero: numeroCliente, resposta: 'Você não tem nenhum agendamento ativo no momento.\\n\\nDigite *1* para agendar um horário.' } }];\n}\n\nconst lista = agendamentos\n  .map(r => `💈 ${r.servico}\\n📅 ${r.data} às ${r.hora}\\n👤 ${r.cabeleireiro || '-'}\\n📌 Status: ${r.status}`)\n  .join('\\n\\n');\n\nreturn [{ json: { numero: numeroCliente, resposta: 'Seus agendamentos:\\n\\n' + lista } }];"
+        "jsCode": "// Opcao 3: mostra os agendamentos ativos (Confirmado ou Finalizado) do numero que esta escrevendo\n// A query ao Supabase ja filtrou por status!=Cancelado+empresa; aqui so localiza pelo numero de quem escreveu\nconst numeroCliente = $('Extrair Mensagem').first().json.numero;\nconst linhas = $input.all().map(i => i.json);\n\nfunction normaliza(tel) {\n  return String(tel || '').replace(/\\D/g, '').slice(-11);\n}\n\nconst alvo = normaliza(numeroCliente);\nconst agendamentos = linhas\n  .filter(r => r && normaliza(r.whatsapp) === alvo)\n  .sort((a, b) => String(a.data + a.hora).localeCompare(String(b.data + b.hora)));\n\nif (agendamentos.length === 0) {\n  return [{ json: { numero: numeroCliente, resposta: 'Você não tem nenhum agendamento ativo no momento.\\n\\nDigite *1* para agendar um horário.' } }];\n}\n\nconst lista = agendamentos\n  .map(r => `💈 ${r.servico}\\n📅 ${r.data} às ${r.hora}\\n👤 ${r.colaborador || '-'}\\n📌 Status: ${r.status}`)\n  .join('\\n\\n');\n\nreturn [{ json: { numero: numeroCliente, resposta: 'Seus agendamentos:\\n\\n' + lista } }];"
       },
       "id": "s07-code-status",
       "name": "Buscar Status do Cliente",

@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Painel do Salão</title>
+  <title>Painel da Empresa</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
   <style>
@@ -42,7 +42,7 @@
     // no banco, não do sigilo desta chave). Edite por instalação.
     const SUPABASE_URL = "https://owggufkpmwqfnlcyndoj.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93Z2d1ZmtwbXdxZm5sY3luZG9qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyODMyOTYsImV4cCI6MjEwMzg1OTI5Nn0.eW03OBDX1gnLDAYWfLwl8h3LigWqsDLkjb52SxayuMs";
-    // Nome do salão e lista de cabeleireiros não são mais hardcoded aqui — vêm de
+    // Nome da empresa e lista de colaboradores não são mais hardcoded aqui — vêm de
     // /empresa-info depois do login (ver carregarEmpresaInfo()), resolvidos pelo RLS a partir
     // do usuário autenticado.
   </script>
@@ -50,13 +50,13 @@
   <!-- Login / cadastro (mostrado até haver sessão Supabase válida) -->
   <div id="authOverlay" class="min-h-screen flex items-center justify-center px-5 py-8">
     <div class="card rounded-2xl p-6 w-full max-w-sm">
-      <h1 class="text-xl font-bold mb-1">Painel do Salão</h1>
-      <p class="text-sm text-gray-400 mb-6">Entre com sua conta ou cadastre seu salão.</p>
+      <h1 class="text-xl font-bold mb-1">Painel da Empresa</h1>
+      <p class="text-sm text-gray-400 mb-6">Entre com sua conta ou cadastre sua empresa.</p>
 
       <div class="flex mb-5 rounded-lg overflow-hidden border border-[#262b33]">
         <button id="tabLogin" type="button" class="flex-1 py-2 text-sm font-semibold bg-gold text-black">Entrar</button>
         <button id="tabCadastro" type="button" class="flex-1 py-2 text-sm font-semibold text-gray-300">Cadastrar
-          salão</button>
+          empresa</button>
       </div>
 
       <form id="formLogin" class="space-y-3">
@@ -70,15 +70,15 @@
       </form>
 
       <form id="formCadastro" class="space-y-3 hidden">
-        <input type="text" id="cadastroNomeEmpresa" required placeholder="Nome do salão"
+        <input type="text" id="cadastroNomeEmpresa" required placeholder="Nome da empresa"
           class="w-full bg-[#0f1115] border border-[#262b33] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold">
-        <input type="text" id="cadastroSlug" required placeholder="Identificador único (ex: salao-da-ana)"
+        <input type="text" id="cadastroSlug" required placeholder="Identificador único (ex: empresa-da-ana)"
           pattern="[a-z0-9]+(-[a-z0-9]+)*"
           title="Somente letras minúsculas, números e hífen"
           class="w-full bg-[#0f1115] border border-[#262b33] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold">
-        <input type="text" id="cadastroWhatsapp" required placeholder="WhatsApp do salão (só dígitos, com DDI)"
+        <input type="text" id="cadastroWhatsapp" required placeholder="WhatsApp da empresa (só dígitos, com DDI)"
           class="w-full bg-[#0f1115] border border-[#262b33] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold">
-        <input type="text" id="cadastroCabeleireiros" placeholder="Cabeleireiros, separados por vírgula (opcional)"
+        <input type="text" id="cadastroColaboradores" placeholder="Colaboradores, separados por vírgula (opcional)"
           class="w-full bg-[#0f1115] border border-[#262b33] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold">
         <input type="email" id="cadastroEmail" required placeholder="E-mail" autocomplete="username"
           class="w-full bg-[#0f1115] border border-[#262b33] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold">
@@ -98,7 +98,7 @@
 
     <header class="flex flex-wrap items-center justify-between gap-4 mb-8">
       <div>
-        <h1 class="text-2xl font-bold" id="nomeSalaoHeader">Painel</h1>
+        <h1 class="text-2xl font-bold" id="nomeEmpresaHeader">Painel</h1>
         <p class="text-sm text-gray-400">Painel de administração</p>
       </div>
       <div class="flex items-center gap-2">
@@ -140,7 +140,7 @@
                   <th class="text-left px-4 py-3">Cliente</th>
                   <th class="text-left px-4 py-3">WhatsApp</th>
                   <th class="text-left px-4 py-3">Serviço</th>
-                  <th class="text-left px-4 py-3">Cabeleireiro</th>
+                  <th class="text-left px-4 py-3">Colaborador</th>
                   <th class="text-left px-4 py-3">Status</th>
                   <th class="text-left px-4 py-3">Ações</th>
                 </tr>
@@ -155,33 +155,33 @@
         </section>
       </div>
 
-      <!-- Ranking de cabeleireiros + Fechamento de agenda -->
+      <!-- Ranking de colaboradores + Fechamento de agenda -->
       <aside class="space-y-6 lg:sticky lg:top-8">
         <div class="card rounded-xl p-5">
-          <h2 class="text-xs text-gray-400 uppercase tracking-wide mb-4">Ranking de cabeleireiros</h2>
-          <div id="rankingCabeleireiros" class="space-y-3">
+          <h2 class="text-xs text-gray-400 uppercase tracking-wide mb-4">Ranking de colaboradores</h2>
+          <div id="rankingColaboradores" class="space-y-3">
             <p class="text-sm text-gray-500">Carregando...</p>
           </div>
         </div>
 
         <div class="card rounded-xl p-5">
-          <h2 class="text-xs text-gray-400 uppercase tracking-wide mb-4">Cabeleireiros</h2>
-          <form id="formCabeleireiros" class="space-y-3">
-            <input type="text" id="cabeleireirosLista" placeholder="Nomes separados por vírgula (ex: Carlos, Ana, Bruno)"
+          <h2 class="text-xs text-gray-400 uppercase tracking-wide mb-4">Colaboradores</h2>
+          <form id="formColaboradores" class="space-y-3">
+            <input type="text" id="colaboradoresLista" placeholder="Nomes separados por vírgula (ex: Carlos, Ana, Bruno)"
               class="w-full bg-[#0f1115] border border-[#262b33] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold">
-            <button type="submit" id="btnSalvarCabeleireiros"
+            <button type="submit" id="btnSalvarColaboradores"
               class="w-full bg-gold text-black text-sm font-semibold py-2.5 rounded-lg disabled:opacity-40">Salvar
               lista</button>
-            <p id="cabeleireirosErro" class="text-xs text-red-400 hidden"></p>
+            <p id="colaboradoresErro" class="text-xs text-red-400 hidden"></p>
           </form>
         </div>
 
         <div class="card rounded-xl p-5">
-          <h2 class="text-xs text-gray-400 uppercase tracking-wide mb-4">Fechar agenda de um cabeleireiro</h2>
+          <h2 class="text-xs text-gray-400 uppercase tracking-wide mb-4">Fechar agenda de um colaborador</h2>
           <form id="formBloqueio" class="space-y-3">
-            <select id="bloqueioCabeleireiro" required
+            <select id="bloqueioColaborador" required
               class="w-full bg-[#0f1115] border border-[#262b33] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold">
-              <option value="">Selecione o cabeleireiro...</option>
+              <option value="">Selecione o colaborador...</option>
             </select>
             <input type="date" id="bloqueioData" required
               class="w-full bg-[#0f1115] border border-[#262b33] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold">
@@ -258,7 +258,7 @@
   <script>
     (function () {
       const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      let cabeleireiros = [];
+      let colaboradores = [];
 
       const authEl = {
         overlay: document.getElementById('authOverlay'),
@@ -274,7 +274,7 @@
         cadastroNomeEmpresa: document.getElementById('cadastroNomeEmpresa'),
         cadastroSlug: document.getElementById('cadastroSlug'),
         cadastroWhatsapp: document.getElementById('cadastroWhatsapp'),
-        cadastroCabeleireiros: document.getElementById('cadastroCabeleireiros'),
+        cadastroColaboradores: document.getElementById('cadastroColaboradores'),
         cadastroEmail: document.getElementById('cadastroEmail'),
         cadastroSenha: document.getElementById('cadastroSenha'),
         btnCadastro: document.getElementById('btnCadastro'),
@@ -322,7 +322,7 @@
         authEl.btnCadastro.disabled = true;
         authEl.btnCadastro.textContent = 'Criando...';
 
-        const listaCabeleireiros = authEl.cadastroCabeleireiros.value
+        const listaColaboradores = authEl.cadastroColaboradores.value
           .split(',').map(s => s.trim()).filter(Boolean);
 
         const { data, error } = await supabase.auth.signUp({
@@ -333,7 +333,7 @@
               slug: authEl.cadastroSlug.value.trim().toLowerCase(),
               nome_empresa: authEl.cadastroNomeEmpresa.value.trim(),
               whatsapp_admin: authEl.cadastroWhatsapp.value.trim(),
-              cabeleireiros: listaCabeleireiros
+              colaboradores: listaColaboradores
             }
           }
         });
@@ -373,12 +373,12 @@
         try {
           const resp = await fetchAutenticado(`${N8N_BASE_URL}/empresa-info`);
           const dados = await resp.json();
-          document.getElementById('nomeSalaoHeader').textContent = dados.nome || 'Painel';
-          cabeleireiros = dados.cabeleireiros || [];
-          popularSelectCabeleireiro();
-          el.cabeleireirosLista.value = cabeleireiros.join(', ');
+          document.getElementById('nomeEmpresaHeader').textContent = dados.nome || 'Painel';
+          colaboradores = dados.colaboradores || [];
+          popularSelectColaborador();
+          el.colaboradoresLista.value = colaboradores.join(', ');
         } catch (err) {
-          document.getElementById('nomeSalaoHeader').textContent = 'Painel';
+          document.getElementById('nomeEmpresaHeader').textContent = 'Painel';
         }
       }
 
@@ -404,13 +404,13 @@
         statFaturamento: document.getElementById('statFaturamento'),
         statCancelados: document.getElementById('statCancelados'),
         corpoTabela: document.getElementById('corpoTabela'),
-        rankingCabeleireiros: document.getElementById('rankingCabeleireiros'),
+        rankingColaboradores: document.getElementById('rankingColaboradores'),
         modalOverlay: document.getElementById('modalOverlay'),
         modalMensagem: document.getElementById('modalMensagem'),
         modalCancelarBtn: document.getElementById('modalCancelarBtn'),
         modalConfirmarBtn: document.getElementById('modalConfirmarBtn'),
         formBloqueio: document.getElementById('formBloqueio'),
-        bloqueioCabeleireiro: document.getElementById('bloqueioCabeleireiro'),
+        bloqueioColaborador: document.getElementById('bloqueioColaborador'),
         bloqueioData: document.getElementById('bloqueioData'),
         bloqueioDiaInteiro: document.getElementById('bloqueioDiaInteiro'),
         bloqueioHorarios: document.getElementById('bloqueioHorarios'),
@@ -420,10 +420,10 @@
         btnCriarBloqueio: document.getElementById('btnCriarBloqueio'),
         bloqueioErro: document.getElementById('bloqueioErro'),
         listaBloqueios: document.getElementById('listaBloqueios'),
-        formCabeleireiros: document.getElementById('formCabeleireiros'),
-        cabeleireirosLista: document.getElementById('cabeleireirosLista'),
-        btnSalvarCabeleireiros: document.getElementById('btnSalvarCabeleireiros'),
-        cabeleireirosErro: document.getElementById('cabeleireirosErro'),
+        formColaboradores: document.getElementById('formColaboradores'),
+        colaboradoresLista: document.getElementById('colaboradoresLista'),
+        btnSalvarColaboradores: document.getElementById('btnSalvarColaboradores'),
+        colaboradoresErro: document.getElementById('colaboradoresErro'),
         formServico: document.getElementById('formServico'),
         servicoNome: document.getElementById('servicoNome'),
         servicoPreco: document.getElementById('servicoPreco'),
@@ -460,32 +460,32 @@
           renderizarRanking(dados.agendamentos || []);
         } catch (err) {
           el.corpoTabela.innerHTML = '<tr><td colspan="7" class="text-center text-red-400 py-8">Erro ao carregar agendamentos.</td></tr>';
-          el.rankingCabeleireiros.innerHTML = '<p class="text-sm text-red-400">Erro ao carregar ranking.</p>';
+          el.rankingColaboradores.innerHTML = '<p class="text-sm text-red-400">Erro ao carregar ranking.</p>';
         }
       }
 
       function renderizarRanking(agendamentos) {
-        const porCabeleireiro = {};
+        const porColaborador = {};
 
         agendamentos.forEach(ag => {
-          const nome = ag.cabeleireiro || 'Sem cabeleireiro';
-          if (!porCabeleireiro[nome]) {
-            porCabeleireiro[nome] = { nome, confirmados: 0, finalizados: 0, valor: 0 };
+          const nome = ag.colaborador || 'Sem colaborador';
+          if (!porColaborador[nome]) {
+            porColaborador[nome] = { nome, confirmados: 0, finalizados: 0, valor: 0 };
           }
-          if (ag.status === 'Confirmado') porCabeleireiro[nome].confirmados++;
-          if (ag.status === 'Finalizado') porCabeleireiro[nome].finalizados++;
+          if (ag.status === 'Confirmado') porColaborador[nome].confirmados++;
+          if (ag.status === 'Finalizado') porColaborador[nome].finalizados++;
           if (ag.status === 'Confirmado' || ag.status === 'Finalizado') {
-            porCabeleireiro[nome].valor += Number(ag.preco || 0);
+            porColaborador[nome].valor += Number(ag.preco || 0);
           }
         });
 
-        const ranking = Object.values(porCabeleireiro)
+        const ranking = Object.values(porColaborador)
           .map(c => ({ ...c, total: c.confirmados + c.finalizados }))
           .filter(c => c.total > 0)
           .sort((a, b) => b.valor - a.valor);
 
         if (!ranking.length) {
-          el.rankingCabeleireiros.innerHTML = '<p class="text-sm text-gray-500">Nenhum atendimento nesta data.</p>';
+          el.rankingColaboradores.innerHTML = '<p class="text-sm text-gray-500">Nenhum atendimento nesta data.</p>';
           return;
         }
 
@@ -499,7 +499,7 @@
           return `<span class="text-xs text-gray-500 font-bold">#${i + 1}</span>`;
         }
 
-        el.rankingCabeleireiros.innerHTML = ranking.map((c, i) => `
+        el.rankingColaboradores.innerHTML = ranking.map((c, i) => `
           <div class="flex flex-col gap-2.5 pb-3 border-b border-[#262b33] last:border-0 last:pb-0">
             <div class="flex items-center justify-between gap-2">
               <span class="text-sm font-medium flex items-center gap-2 min-w-0">
@@ -546,7 +546,7 @@
           <a href="${linkWhats}" target="_blank" rel="noopener" class="text-green-400 hover:underline">${ag.whatsapp}</a>
         </td>
         <td class="px-4 py-3">${ag.servico}<br><span class="text-xs text-gray-500">${formatarMoeda(ag.preco)}</span></td>
-        <td class="px-4 py-3">${ag.cabeleireiro || '—'}</td>
+        <td class="px-4 py-3">${ag.colaborador || '—'}</td>
         <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${corStatus(ag.status)}">${ag.status}</span></td>
         <td class="px-4 py-3 text-right whitespace-nowrap">
           ${podeAgir ? `
@@ -611,46 +611,46 @@
       el.btnAtualizar.addEventListener('click', carregarAgendamentos);
       el.inputData.addEventListener('change', carregarAgendamentos);
 
-      // ---- Cabeleireiros (lista da empresa) ----
-      el.formCabeleireiros.addEventListener('submit', async (e) => {
+      // ---- Colaboradores (lista da empresa) ----
+      el.formColaboradores.addEventListener('submit', async (e) => {
         e.preventDefault();
-        el.cabeleireirosErro.classList.add('hidden');
+        el.colaboradoresErro.classList.add('hidden');
 
-        const lista = el.cabeleireirosLista.value
+        const lista = el.colaboradoresLista.value
           .split(',').map(s => s.trim()).filter(Boolean);
 
-        el.btnSalvarCabeleireiros.disabled = true;
-        el.btnSalvarCabeleireiros.textContent = 'Salvando...';
+        el.btnSalvarColaboradores.disabled = true;
+        el.btnSalvarColaboradores.textContent = 'Salvando...';
 
         try {
-          const resp = await fetchAutenticado(`${N8N_BASE_URL}/atualizar-cabeleireiros`, {
+          const resp = await fetchAutenticado(`${N8N_BASE_URL}/atualizar-colaboradores`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cabeleireiros: lista })
+            body: JSON.stringify({ colaboradores: lista })
           });
           const dados = await resp.json().catch(() => ({}));
 
           if (resp.status === 200 && dados.sucesso !== false) {
-            cabeleireiros = dados.cabeleireiros || lista;
-            popularSelectCabeleireiro();
-            el.cabeleireirosLista.value = cabeleireiros.join(', ');
+            colaboradores = dados.colaboradores || lista;
+            popularSelectColaborador();
+            el.colaboradoresLista.value = colaboradores.join(', ');
           } else {
-            el.cabeleireirosErro.textContent = dados.mensagem || 'Não foi possível salvar a lista.';
-            el.cabeleireirosErro.classList.remove('hidden');
+            el.colaboradoresErro.textContent = dados.mensagem || 'Não foi possível salvar a lista.';
+            el.colaboradoresErro.classList.remove('hidden');
           }
         } catch (err) {
-          el.cabeleireirosErro.textContent = 'Erro de conexão. Tente novamente.';
-          el.cabeleireirosErro.classList.remove('hidden');
+          el.colaboradoresErro.textContent = 'Erro de conexão. Tente novamente.';
+          el.colaboradoresErro.classList.remove('hidden');
         } finally {
-          el.btnSalvarCabeleireiros.disabled = false;
-          el.btnSalvarCabeleireiros.textContent = 'Salvar lista';
+          el.btnSalvarColaboradores.disabled = false;
+          el.btnSalvarColaboradores.textContent = 'Salvar lista';
         }
       });
 
-      // ---- Fechamento de agenda por cabeleireiro ----
-      function popularSelectCabeleireiro() {
-        el.bloqueioCabeleireiro.innerHTML = '<option value="">Selecione o cabeleireiro...</option>' +
-          cabeleireiros.map(nome => `<option value="${nome}">${nome}</option>`).join('');
+      // ---- Fechamento de agenda por colaborador ----
+      function popularSelectColaborador() {
+        el.bloqueioColaborador.innerHTML = '<option value="">Selecione o colaborador...</option>' +
+          colaboradores.map(nome => `<option value="${nome}">${nome}</option>`).join('');
       }
 
       el.bloqueioDiaInteiro.addEventListener('change', () => {
@@ -683,7 +683,7 @@
           const periodo = bq.dia_inteiro ? 'Dia inteiro' : `${bq.hora_inicio}–${bq.hora_fim}`;
           div.innerHTML = `
             <div class="min-w-0">
-              <p class="text-sm font-medium truncate">${bq.cabeleireiro} • ${dataFormatada}</p>
+              <p class="text-sm font-medium truncate">${bq.colaborador} • ${dataFormatada}</p>
               <p class="text-xs text-gray-500 truncate">${periodo}${bq.motivo ? ' • ' + bq.motivo : ''}</p>
             </div>
             <button class="btnCancelarBloqueio text-xs bg-red-500/20 text-red-400 px-2.5 py-1.5 rounded-lg hover:bg-red-500/30 shrink-0">Cancelar</button>
@@ -711,7 +711,7 @@
 
         const diaInteiro = el.bloqueioDiaInteiro.checked;
         const payload = {
-          cabeleireiro: el.bloqueioCabeleireiro.value,
+          colaborador: el.bloqueioColaborador.value,
           data: el.bloqueioData.value,
           hora_inicio: diaInteiro ? '' : el.bloqueioHoraInicio.value,
           hora_fim: diaInteiro ? '' : el.bloqueioHoraFim.value,

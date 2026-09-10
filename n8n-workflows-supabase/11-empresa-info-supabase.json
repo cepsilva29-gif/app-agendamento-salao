@@ -61,7 +61,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const encontradas = $input.all().map(i => i.json).filter(row => row && row.id);\nif (encontradas.length === 0) return [{ json: { encontrada: false } }];\nconst e = encontradas[0];\nreturn [{ json: { encontrada: true, nome: e.nome, cabeleireiros: e.cabeleireiros || [] } }];"
+        "jsCode": "const encontradas = $input.all().map(i => i.json).filter(row => row && row.id);\nif (encontradas.length === 0) return [{ json: { encontrada: false } }];\nconst e = encontradas[0];\nreturn [{ json: { encontrada: true, nome: e.nome, colaboradores: e.colaboradores || [] } }];"
       },
       "id": "s11-formatar-publico",
       "name": "Formatar Resposta Publica",
@@ -108,7 +108,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { \"nome\": $json.nome, \"cabeleireiros\": $json.cabeleireiros } }}",
+        "responseBody": "={{ { \"nome\": $json.nome, \"colaboradores\": $json.colaboradores } }}",
         "options": {
           "responseHeaders": {
             "entries": [
@@ -132,7 +132,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { \"sucesso\": false, \"mensagem\": \"Salao nao encontrado.\" } }}",
+        "responseBody": "={{ { \"sucesso\": false, \"mensagem\": \"Empresa nao encontrada.\" } }}",
         "options": {
           "responseHeaders": {
             "entries": [
@@ -257,7 +257,7 @@
           "parameters": [
             {
               "name": "select",
-              "value": "nome,cabeleireiros"
+              "value": "nome,colaboradores"
             }
           ]
         },
@@ -276,7 +276,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { \"nome\": $json.nome, \"cabeleireiros\": $json.cabeleireiros || [] } }}",
+        "responseBody": "={{ { \"nome\": $json.nome, \"colaboradores\": $json.colaboradores || [] } }}",
         "options": {
           "responseHeaders": {
             "entries": [
@@ -325,16 +325,16 @@
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "atualizar-cabeleireiros",
+        "path": "atualizar-colaboradores",
         "responseMode": "responseNode",
         "options": { "allowedOrigins": "*" }
       },
-      "id": "s11-webhook-atualizar-cabeleireiros",
-      "name": "Webhook Atualizar Cabeleireiros",
+      "id": "s11-webhook-atualizar-colaboradores",
+      "name": "Webhook Atualizar Colaboradores",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [0, 680],
-      "webhookId": "atualizar-cabeleireiros-post-0001-supabase"
+      "webhookId": "atualizar-colaboradores-post-0001-supabase"
     },
     {
       "parameters": {
@@ -349,8 +349,8 @@
         },
         "options": {}
       },
-      "id": "s11-auth-verify-cab",
-      "name": "Autenticar (Cabeleireiros)",
+      "id": "s11-auth-verify-colab",
+      "name": "Autenticar (Colaboradores)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [220, 680],
@@ -372,18 +372,18 @@
         },
         "options": {}
       },
-      "id": "s11-auth-if-cab",
-      "name": "Autenticado? (Cabeleireiros)",
+      "id": "s11-auth-if-colab",
+      "name": "Autenticado? (Colaboradores)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [440, 680]
     },
     {
       "parameters": {
-        "jsCode": "// Valida o payload: espera { cabeleireiros: [\"Carlos\", \"Ana\", ...] }\nconst body = $('Webhook Atualizar Cabeleireiros').first().json.body || {};\nconst lista = body.cabeleireiros;\n\nif (!Array.isArray(lista) || !lista.every(n => typeof n === 'string')) {\n  return [{ json: { valido: false, erro: 'cabeleireiros deve ser uma lista de nomes (texto)' } }];\n}\n\nconst limpos = lista.map(n => n.trim()).filter(Boolean);\n\nreturn [{ json: { valido: true, cabeleireiros: limpos } }];"
+        "jsCode": "// Valida o payload: espera { colaboradores: [\"Carlos\", \"Ana\", ...] }\nconst body = $('Webhook Atualizar Colaboradores').first().json.body || {};\nconst lista = body.colaboradores;\n\nif (!Array.isArray(lista) || !lista.every(n => typeof n === 'string')) {\n  return [{ json: { valido: false, erro: 'colaboradores deve ser uma lista de nomes (texto)' } }];\n}\n\nconst limpos = lista.map(n => n.trim()).filter(Boolean);\n\nreturn [{ json: { valido: true, colaboradores: limpos } }];"
       },
-      "id": "s11-validar-cab",
-      "name": "Validar Dados (Cabeleireiros)",
+      "id": "s11-validar-colab",
+      "name": "Validar Dados (Colaboradores)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [660, 680]
@@ -404,8 +404,8 @@
         },
         "options": {}
       },
-      "id": "s11-validos-if-cab",
-      "name": "Dados Validos? (Cabeleireiros)",
+      "id": "s11-validos-if-colab",
+      "name": "Dados Validos? (Colaboradores)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [880, 680]
@@ -418,7 +418,7 @@
         "headerParameters": {
           "parameters": [
             { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
-            { "name": "Authorization", "value": "={{ $('Webhook Atualizar Cabeleireiros').first().json.headers.authorization }}" },
+            { "name": "Authorization", "value": "={{ $('Webhook Atualizar Colaboradores').first().json.headers.authorization }}" },
             { "name": "Prefer", "value": "return=minimal" }
           ]
         },
@@ -430,11 +430,11 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"cabeleireiros\": $json.cabeleireiros } }}",
+        "jsonBody": "={{ { \"colaboradores\": $json.colaboradores } }}",
         "options": {}
       },
-      "id": "s11-atualizar-cab",
-      "name": "Atualizar Cabeleireiros (PostgREST)",
+      "id": "s11-atualizar-colab",
+      "name": "Atualizar Colaboradores (PostgREST)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [1100, 600]
@@ -442,13 +442,13 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { \"sucesso\": true, \"mensagem\": \"Cabeleireiros atualizados.\", \"cabeleireiros\": $json.cabeleireiros } }}",
+        "responseBody": "={{ { \"sucesso\": true, \"mensagem\": \"Colaboradores atualizados.\", \"colaboradores\": $json.colaboradores } }}",
         "options": {
           "responseHeaders": { "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }] }
         }
       },
-      "id": "s11-responder-cab",
-      "name": "Responder Sucesso (Cabeleireiros)",
+      "id": "s11-responder-colab",
+      "name": "Responder Sucesso (Colaboradores)",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [1320, 600]
@@ -462,8 +462,8 @@
           "responseCode": 400
         }
       },
-      "id": "s11-invalido-cab",
-      "name": "Responder Invalido (Cabeleireiros)",
+      "id": "s11-invalido-colab",
+      "name": "Responder Invalido (Colaboradores)",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [880, 860]
@@ -477,8 +477,8 @@
           "responseCode": 401
         }
       },
-      "id": "s11-401-cab",
-      "name": "Responder Nao Autorizado (Cabeleireiros)",
+      "id": "s11-401-colab",
+      "name": "Responder Nao Autorizado (Colaboradores)",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [440, 900]
@@ -587,29 +587,29 @@
         ]
       ]
     },
-    "Webhook Atualizar Cabeleireiros": {
-      "main": [[{ "node": "Autenticar (Cabeleireiros)", "type": "main", "index": 0 }]]
+    "Webhook Atualizar Colaboradores": {
+      "main": [[{ "node": "Autenticar (Colaboradores)", "type": "main", "index": 0 }]]
     },
-    "Autenticar (Cabeleireiros)": {
-      "main": [[{ "node": "Autenticado? (Cabeleireiros)", "type": "main", "index": 0 }]]
+    "Autenticar (Colaboradores)": {
+      "main": [[{ "node": "Autenticado? (Colaboradores)", "type": "main", "index": 0 }]]
     },
-    "Autenticado? (Cabeleireiros)": {
+    "Autenticado? (Colaboradores)": {
       "main": [
-        [{ "node": "Validar Dados (Cabeleireiros)", "type": "main", "index": 0 }],
-        [{ "node": "Responder Nao Autorizado (Cabeleireiros)", "type": "main", "index": 0 }]
+        [{ "node": "Validar Dados (Colaboradores)", "type": "main", "index": 0 }],
+        [{ "node": "Responder Nao Autorizado (Colaboradores)", "type": "main", "index": 0 }]
       ]
     },
-    "Validar Dados (Cabeleireiros)": {
-      "main": [[{ "node": "Dados Validos? (Cabeleireiros)", "type": "main", "index": 0 }]]
+    "Validar Dados (Colaboradores)": {
+      "main": [[{ "node": "Dados Validos? (Colaboradores)", "type": "main", "index": 0 }]]
     },
-    "Dados Validos? (Cabeleireiros)": {
+    "Dados Validos? (Colaboradores)": {
       "main": [
-        [{ "node": "Atualizar Cabeleireiros (PostgREST)", "type": "main", "index": 0 }],
-        [{ "node": "Responder Invalido (Cabeleireiros)", "type": "main", "index": 0 }]
+        [{ "node": "Atualizar Colaboradores (PostgREST)", "type": "main", "index": 0 }],
+        [{ "node": "Responder Invalido (Colaboradores)", "type": "main", "index": 0 }]
       ]
     },
-    "Atualizar Cabeleireiros (PostgREST)": {
-      "main": [[{ "node": "Responder Sucesso (Cabeleireiros)", "type": "main", "index": 0 }]]
+    "Atualizar Colaboradores (PostgREST)": {
+      "main": [[{ "node": "Responder Sucesso (Colaboradores)", "type": "main", "index": 0 }]]
     }
   },
   "active": false,

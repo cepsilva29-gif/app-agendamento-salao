@@ -184,7 +184,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { \"sucesso\": false, \"mensagem\": \"Salao nao encontrado.\" } }}",
+        "responseBody": "={{ { \"sucesso\": false, \"mensagem\": \"Empresa nao encontrada.\" } }}",
         "options": {
           "responseHeaders": {
             "entries": [
