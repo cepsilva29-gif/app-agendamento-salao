@@ -286,7 +286,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Opcao 1: reenvia o link do app para agendar (cada empresa tem seu proprio subdominio de agenda)\nconst dominio = $env.DOMAIN || 'suaempresa.com.br';\nconst slug = $('Checar Empresa').first().json.slug;\nconst resposta = 'Para agendar, acesse: https://agenda-' + slug + '.' + dominio + '\\nEscolha o serviço, o colaborador, a data e o horário direto por lá! 💈';\nreturn [{ json: { numero: $('Extrair Mensagem').first().json.numero, resposta } }];"
+        "jsCode": "// Opcao 1: reenvia o link do app para agendar (cada empresa tem seu proprio subdominio de agenda)\nconst dominio = $env.DOMAIN || 'suaempresa.com.br';\nconst slug = $('Checar Empresa').first().json.slug;\nconst resposta = 'Para agendar, acesse: https://' + slug + '.agenda.' + dominio + '\\nEscolha o serviço, o colaborador, a data e o horário direto por lá! 💈';\nreturn [{ json: { numero: $('Extrair Mensagem').first().json.numero, resposta } }];"
       },
       "id": "s07-code-resposta-agendar",
       "name": "Montar Resposta Agendar",
@@ -457,7 +457,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Nao achou nenhum agendamento confirmado, ou achou mais de um -> pede para o cliente esclarecer\nconst dominio = $env.DOMAIN || 'suaempresa.com.br';\nconst slug = $('Checar Empresa').first().json.slug;\nlet resposta;\n\nif ($json.motivo === 'multiplos') {\n  resposta = 'Você tem mais de um agendamento confirmado:\\n' + $json.lista + '\\n\\nAcesse https://agenda-' + slug + '.' + dominio + ' ou fale com a gente informando qual horário deseja cancelar.';\n} else {\n  resposta = 'Não encontrei nenhum agendamento confirmado com este número. Se preferir, acesse https://agenda-' + slug + '.' + dominio + ' para conferir seus horários.';\n}\n\nreturn [{ json: { numero: $json.numero, resposta } }];"
+        "jsCode": "// Nao achou nenhum agendamento confirmado, ou achou mais de um -> pede para o cliente esclarecer\nconst dominio = $env.DOMAIN || 'suaempresa.com.br';\nconst slug = $('Checar Empresa').first().json.slug;\nlet resposta;\n\nif ($json.motivo === 'multiplos') {\n  resposta = 'Você tem mais de um agendamento confirmado:\\n' + $json.lista + '\\n\\nAcesse https://' + slug + '.agenda.' + dominio + ' ou fale com a gente informando qual horário deseja cancelar.';\n} else {\n  resposta = 'Não encontrei nenhum agendamento confirmado com este número. Se preferir, acesse https://' + slug + '.agenda.' + dominio + ' para conferir seus horários.';\n}\n\nreturn [{ json: { numero: $json.numero, resposta } }];"
       },
       "id": "s07-code-resposta-nao-encontrado",
       "name": "Montar Resposta Nao Encontrado",
