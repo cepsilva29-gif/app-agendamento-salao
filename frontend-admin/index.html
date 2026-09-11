@@ -176,6 +176,8 @@
             <span id="whatsappBadge" class="text-xs px-2.5 py-1 rounded-full bg-gray-500/20 text-gray-400">Verificando...</span>
             <button type="button" id="btnConectarWhatsapp"
               class="text-xs bg-gold text-black px-3 py-1.5 rounded-lg font-semibold disabled:opacity-40">Conectar WhatsApp</button>
+            <button type="button" id="btnDesconectarWhatsapp"
+              class="hidden text-xs border border-red-500/40 text-red-400 px-3 py-1.5 rounded-lg font-semibold disabled:opacity-40">Desconectar</button>
           </div>
           <div id="whatsappQrContainer" class="hidden text-center space-y-2">
             <img id="whatsappQrImg" alt="QR Code do WhatsApp" class="mx-auto rounded-lg border border-[#262b33] max-w-[220px]">
@@ -471,6 +473,7 @@
         listaServicos: document.getElementById('listaServicos'),
         whatsappBadge: document.getElementById('whatsappBadge'),
         btnConectarWhatsapp: document.getElementById('btnConectarWhatsapp'),
+        btnDesconectarWhatsapp: document.getElementById('btnDesconectarWhatsapp'),
         whatsappQrContainer: document.getElementById('whatsappQrContainer'),
         whatsappQrImg: document.getElementById('whatsappQrImg'),
         whatsappErro: document.getElementById('whatsappErro'),
@@ -907,16 +910,19 @@
           badge.textContent = 'Conectado';
           badge.className = 'text-xs px-2.5 py-1 rounded-full bg-green-500/20 text-green-400';
           el.btnConectarWhatsapp.classList.add('hidden');
+          el.btnDesconectarWhatsapp.classList.remove('hidden');
           el.whatsappQrContainer.classList.add('hidden');
           pararPollingWhatsapp();
         } else if (status === 'conectando') {
           badge.textContent = 'Conectando...';
           badge.className = 'text-xs px-2.5 py-1 rounded-full bg-yellow-500/20 text-yellow-400';
           el.btnConectarWhatsapp.classList.remove('hidden');
+          el.btnDesconectarWhatsapp.classList.add('hidden');
         } else {
           badge.textContent = 'Não conectado';
           badge.className = 'text-xs px-2.5 py-1 rounded-full bg-gray-500/20 text-gray-400';
           el.btnConectarWhatsapp.classList.remove('hidden');
+          el.btnDesconectarWhatsapp.classList.add('hidden');
         }
       }
 
@@ -952,6 +958,22 @@
           setTimeout(() => { el.btnCopiarLinkAgendamento.textContent = original; }, 1500);
         } catch (err) {
           // clipboard indisponível (ex: contexto não seguro) — o link já fica visível/clicável
+        }
+      });
+
+      el.btnDesconectarWhatsapp.addEventListener('click', async () => {
+        el.whatsappErro.classList.add('hidden');
+        el.btnDesconectarWhatsapp.disabled = true;
+        el.btnDesconectarWhatsapp.textContent = 'Desconectando...';
+        try {
+          await fetchAutenticado(`${N8N_BASE_URL}/whatsapp-desconectar`, { method: 'POST' });
+          await carregarStatusWhatsapp();
+        } catch (err) {
+          el.whatsappErro.textContent = 'Erro de conexão. Tente novamente.';
+          el.whatsappErro.classList.remove('hidden');
+        } finally {
+          el.btnDesconectarWhatsapp.disabled = false;
+          el.btnDesconectarWhatsapp.textContent = 'Desconectar';
         }
       });
 

@@ -395,6 +395,142 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [440, 620]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-desconectar",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "s13-webhook-desconectar",
+      "name": "Webhook Desconectar",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 860],
+      "webhookId": "whatsapp-desconectar-post-0001-supabase"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/auth/v1/user",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "={{ $json.headers.authorization }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "s13-auth-desconectar",
+      "name": "Autenticar (Desconectar)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 860],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 1 },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "s13-auth-if-desconectar",
+      "name": "Autenticado? (Desconectar)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [440, 860]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/empresas",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "={{ $('Webhook Desconectar').first().json.headers.authorization }}" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "select", "value": "evolution_instance" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "s13-ler-empresa-desconectar",
+      "name": "Ler Empresa (Desconectar)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 860],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "={{ $env.EVOLUTION_API_URL }}/instance/logout/{{ $json.evolution_instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.EVOLUTION_API_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "s13-desconectar-instancia",
+      "name": "Desconectar Instancia",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 860],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"desconectado\" } }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }]
+          }
+        }
+      },
+      "id": "s13-responder-desconectado",
+      "name": "Responder Desconectado",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1100, 860]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"sucesso\": false, \"mensagem\": \"Nao autorizado.\" } }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }]
+          },
+          "responseCode": 401
+        }
+      },
+      "id": "s13-401-desconectar",
+      "name": "Responder Nao Autorizado (Desconectar)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [440, 1000]
     }
   ],
   "connections": {
@@ -457,6 +593,24 @@
     },
     "Normalizar QR": {
       "main": [[{ "node": "Responder Aguardando Leitura", "type": "main", "index": 0 }]]
+    },
+    "Webhook Desconectar": {
+      "main": [[{ "node": "Autenticar (Desconectar)", "type": "main", "index": 0 }]]
+    },
+    "Autenticar (Desconectar)": {
+      "main": [[{ "node": "Autenticado? (Desconectar)", "type": "main", "index": 0 }]]
+    },
+    "Autenticado? (Desconectar)": {
+      "main": [
+        [{ "node": "Ler Empresa (Desconectar)", "type": "main", "index": 0 }],
+        [{ "node": "Responder Nao Autorizado (Desconectar)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Ler Empresa (Desconectar)": {
+      "main": [[{ "node": "Desconectar Instancia", "type": "main", "index": 0 }]]
+    },
+    "Desconectar Instancia": {
+      "main": [[{ "node": "Responder Desconectado", "type": "main", "index": 0 }]]
     }
   },
   "active": false,
