@@ -147,6 +147,15 @@ frontend-admin/index.html (owner dashboard)        ├──HTTP──▶ n8n we
     leak risk here, since these are exactly the `service_role` nodes resolving `empresa` by slug).
     The HTTP Request nodes used in the admin/RLS workflows are unaffected (plain PostgREST query
     params AND by default).
+  - **Gotcha confirmed by testing**: the native `n8n-nodes-base.supabase` node's `tableId`
+    parameter must be written as a resource-locator object —
+    `{ "__rl": true, "value": "empresas", "mode": "id" }` — not a plain string. A plain string
+    (`"tableId": "empresas"`) imports and saves without error, but this n8n version's editor can't
+    resolve/display it, shows "Error fetching options from Supabase" on the field, and — more
+    importantly — refuses to **Publish** the workflow ("1 node has issues") until every affected
+    node is fixed. Affects only the `service_role` workflows that use the native node directly
+    (`00`, `01`, `02`, `06`, `07`, and the public half of `11`); the admin/RLS workflows are
+    unaffected since they call PostgREST via **HTTP Request** nodes instead.
 
 ### Frontend ↔ backend wiring
 

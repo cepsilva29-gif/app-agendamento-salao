@@ -24,7 +24,11 @@
       "parameters": {
         "resource": "row",
         "operation": "getAll",
-        "tableId": "empresas",
+        "tableId": {
+          "__rl": true,
+          "value": "empresas",
+          "mode": "id"
+        },
         "returnAll": true,
         "filterType": "manual",
         "filters": {
@@ -109,7 +113,11 @@
       "parameters": {
         "resource": "row",
         "operation": "getAll",
-        "tableId": "servicos",
+        "tableId": {
+          "__rl": true,
+          "value": "servicos",
+          "mode": "id"
+        },
         "returnAll": true,
         "filterType": "manual",
         "filters": {

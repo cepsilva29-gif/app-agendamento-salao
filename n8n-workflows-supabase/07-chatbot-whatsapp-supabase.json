@@ -35,7 +35,11 @@
       "parameters": {
         "resource": "row",
         "operation": "getAll",
-        "tableId": "empresas",
+        "tableId": {
+          "__rl": true,
+          "value": "empresas",
+          "mode": "id"
+        },
         "returnAll": true,
         "filterType": "manual",
         "filters": {
@@ -310,7 +314,11 @@
       "parameters": {
         "resource": "row",
         "operation": "getAll",
-        "tableId": "agendamentos",
+        "tableId": {
+          "__rl": true,
+          "value": "agendamentos",
+          "mode": "id"
+        },
         "returnAll": true,
         "filterType": "manual",
         "filters": {
@@ -394,7 +402,11 @@
       "parameters": {
         "resource": "row",
         "operation": "update",
-        "tableId": "agendamentos",
+        "tableId": {
+          "__rl": true,
+          "value": "agendamentos",
+          "mode": "id"
+        },
         "filterType": "manual",
         "filters": {
           "conditions": [
@@ -460,7 +472,11 @@
       "parameters": {
         "resource": "row",
         "operation": "getAll",
-        "tableId": "agendamentos",
+        "tableId": {
+          "__rl": true,
+          "value": "agendamentos",
+          "mode": "id"
+        },
         "returnAll": true,
         "filterType": "manual",
         "filters": {

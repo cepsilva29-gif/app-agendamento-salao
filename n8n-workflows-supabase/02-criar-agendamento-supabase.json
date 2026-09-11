@@ -24,7 +24,11 @@
       "parameters": {
         "resource": "row",
         "operation": "getAll",
-        "tableId": "empresas",
+        "tableId": {
+          "__rl": true,
+          "value": "empresas",
+          "mode": "id"
+        },
         "returnAll": true,
         "filterType": "manual",
         "filters": {
@@ -154,7 +158,11 @@
     {
       "parameters": {
         "operation": "getAll",
-        "tableId": "servicos",
+        "tableId": {
+          "__rl": true,
+          "value": "servicos",
+          "mode": "id"
+        },
         "returnAll": true,
         "filters": {
           "conditions": [
@@ -237,7 +245,11 @@
     {
       "parameters": {
         "operation": "getAll",
-        "tableId": "agendamentos",
+        "tableId": {
+          "__rl": true,
+          "value": "agendamentos",
+          "mode": "id"
+        },
         "returnAll": true,
         "filters": {
           "conditions": [
@@ -274,7 +286,11 @@
     {
       "parameters": {
         "operation": "getAll",
-        "tableId": "bloqueios",
+        "tableId": {
+          "__rl": true,
+          "value": "bloqueios",
+          "mode": "id"
+        },
         "returnAll": true,
         "filters": {
           "conditions": [
@@ -356,7 +372,11 @@
     },
     {
       "parameters": {
-        "tableId": "agendamentos",
+        "tableId": {
+          "__rl": true,
+          "value": "agendamentos",
+          "mode": "id"
+        },
         "fieldsUi": {
           "fieldValues": [
             {

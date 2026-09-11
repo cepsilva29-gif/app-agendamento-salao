@@ -24,7 +24,11 @@
       "parameters": {
         "resource": "row",
         "operation": "getAll",
-        "tableId": "empresas",
+        "tableId": {
+          "__rl": true,
+          "value": "empresas",
+          "mode": "id"
+        },
         "returnAll": true,
         "filterType": "manual",
         "filters": {
