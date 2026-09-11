@@ -343,7 +343,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"instanceName\": $('Ler Empresa (Conectar)').first().json.evolution_instance, \"qrcode\": true, \"integration\": \"WHATSAPP-BAILEYS\" } }}",
+        "jsonBody": "={{ { \"instanceName\": $('Ler Empresa (Conectar)').first().json.evolution_instance, \"qrcode\": true, \"integration\": \"WHATSAPP-BAILEYS\", \"webhook\": { \"enabled\": true, \"url\": \"https://n8n.engenhariadedadosn8n.shop/webhook/whatsapp-in\", \"byEvents\": false, \"base64\": false, \"events\": [\"MESSAGES_UPSERT\"] } } }}",
         "options": {}
       },
       "id": "s13-criar-instancia",
