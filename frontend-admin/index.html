@@ -100,6 +100,12 @@
       <div>
         <h1 class="text-2xl font-bold" id="nomeEmpresaHeader">Painel</h1>
         <p class="text-sm text-gray-400">Painel de administração</p>
+        <div id="linkAgendamentoBox" class="hidden mt-2 flex items-center gap-2">
+          <p class="text-xs text-gray-400">Link para os clientes agendarem:</p>
+          <a id="linkAgendamento" href="#" target="_blank" rel="noopener" class="text-xs text-gold hover:underline"></a>
+          <button type="button" id="btnCopiarLinkAgendamento"
+            class="text-xs border border-[#262b33] px-2 py-0.5 rounded-lg text-gray-300">Copiar</button>
+        </div>
       </div>
       <div class="flex items-center gap-2">
         <input type="date" id="inputData"
@@ -384,6 +390,14 @@
         return fetch(url, Object.assign({}, options, { headers }));
       }
 
+      // Deriva o domínio de https://n8n.SEUDOMINIO/webhook -> SEUDOMINIO, para montar o link
+      // https://<slug>.agenda.SEUDOMINIO que os clientes usam para agendar.
+      function construirLinkAgendamento(slug) {
+        if (!slug || IS_LOCAL) return null;
+        const hostBase = new URL(N8N_BASE_URL).hostname.replace(/^n8n\./, '');
+        return `https://${slug}.agenda.${hostBase}`;
+      }
+
       async function carregarEmpresaInfo() {
         try {
           const resp = await fetchAutenticado(`${N8N_BASE_URL}/empresa-info`);
@@ -392,6 +406,14 @@
           colaboradores = dados.colaboradores || [];
           popularSelectColaborador();
           el.colaboradoresLista.value = colaboradores.join(', ');
+
+          const link = construirLinkAgendamento(dados.slug);
+          if (link) {
+            const linkEl = document.getElementById('linkAgendamento');
+            linkEl.href = link;
+            linkEl.textContent = link;
+            document.getElementById('linkAgendamentoBox').classList.remove('hidden');
+          }
         } catch (err) {
           document.getElementById('nomeEmpresaHeader').textContent = 'Painel';
         }
@@ -451,7 +473,9 @@
         btnConectarWhatsapp: document.getElementById('btnConectarWhatsapp'),
         whatsappQrContainer: document.getElementById('whatsappQrContainer'),
         whatsappQrImg: document.getElementById('whatsappQrImg'),
-        whatsappErro: document.getElementById('whatsappErro')
+        whatsappErro: document.getElementById('whatsappErro'),
+        linkAgendamento: document.getElementById('linkAgendamento'),
+        btnCopiarLinkAgendamento: document.getElementById('btnCopiarLinkAgendamento')
       };
 
       el.inputData.value = new Date().toISOString().slice(0, 10);
@@ -919,6 +943,17 @@
           await carregarStatusWhatsapp();
         }, 4000);
       }
+
+      el.btnCopiarLinkAgendamento.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(el.linkAgendamento.href);
+          const original = el.btnCopiarLinkAgendamento.textContent;
+          el.btnCopiarLinkAgendamento.textContent = 'Copiado!';
+          setTimeout(() => { el.btnCopiarLinkAgendamento.textContent = original; }, 1500);
+        } catch (err) {
+          // clipboard indisponível (ex: contexto não seguro) — o link já fica visível/clicável
+        }
+      });
 
       el.btnConectarWhatsapp.addEventListener('click', async () => {
         el.whatsappErro.classList.add('hidden');
