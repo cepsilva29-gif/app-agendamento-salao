@@ -222,18 +222,21 @@ settings). When changing logic that lives in these workflows:
 
 ## Production deployment target
 
-Single Hostinger KVM 2 VPS running the full `docker-compose.yml` stack (n8n + Postgres for n8n +
-Evolution API + its own Postgres/Redis + Caddy), with DNS A records pointing at it for
-`n8n.`, `evolution.`, `agenda.`, `admin.` subdomains of `$DOMAIN`, plus a wildcard
-`*.agenda.$DOMAIN` record for the multi-tenant `frontend-agenda` deploy (see the Caddy wildcard
-note above) — that record's zone must be hosted on Cloudflare, not Hostinger's own DNS. There is
-no dedicated step-by-step doc for this direct-VPS path (see `docs/deploy-easypanel.md` for the
-documented alternative below). Never commit a real `.env` — it's git-ignored, and only ever
-belongs on the VPS.
+**Easypanel, self-hosted on the user's own Hostinger KVM 2 VPS** (not Easypanel Cloud) — this is
+the actual, currently-running production deployment. Easypanel manages two projects behind
+Traefik: `app_agendamento` (the `frontend_admin` and `frontend_agenda` static apps, built from
+their respective `Dockerfile`s) and `projeto-n8n` (n8n + Evolution API, each with its own
+Postgres/Redis). Full step-by-step: `docs/deploy-easypanel.md`. Supporting files:
+`frontend-admin/Dockerfile`, `frontend-agenda/Dockerfile`, and `easypanel/` (a trimmed
+`docker-compose.easypanel.yml` and an `app_agendamento.env.example`). Never commit a real
+`.env`/`app_agendamento.env` — they're git-ignored, and only ever belong on the VPS.
 
-**Alternative deployment target**: `docs/deploy-easypanel.md` documents deploying to Easypanel
-instead, paired with the same Supabase-backed workflows in `n8n-workflows-supabase/` and the
-schema in `supabase/schema.sql` — it's a different way to host the same n8n + Evolution API stack,
-not a different backend. Supporting files for that path: `frontend-admin/Dockerfile`,
-`frontend-agenda/Dockerfile`, and `easypanel/` (a trimmed `docker-compose.easypanel.yml` and an
-`app_agendamento.env.example`).
+**Legacy, not currently deployed**: the repo's root `docker-compose.yml` + `Caddyfile` (+
+`Dockerfile.caddy`) describe a manual, non-Easypanel way to run the same n8n + Evolution API +
+Caddy stack directly on a VPS via `docker compose up -d`, with DNS A records for `n8n.`,
+`evolution.`, `agenda.`, `admin.` subdomains of `$DOMAIN` plus the wildcard `*.agenda.$DOMAIN`
+(see the Caddy wildcard note above) — that record's zone must be hosted on Cloudflare, not
+Hostinger's own DNS. Confirmed by SSHing into the production VPS (2026-09-14) that this manual
+stack is **not** currently running — only Easypanel/Traefik-managed containers are up. There is
+no dedicated step-by-step doc for this path. Treat it as an unmaintained fallback, not something
+to assume is live.
