@@ -4,11 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A WhatsApp-based scheduling system for a hair salon ("Salão de Beleza"), built with **no
-traditional backend or database**. All business logic lives in n8n workflows; the data store is a
-Google Sheet; WhatsApp messaging goes through a self-hosted Evolution API instance. There is no
-build step anywhere in this repo — both frontends are single static `index.html` files (Tailwind
-via CDN, vanilla JS), and the "backend" is JSON workflow definitions imported into n8n's UI.
+A WhatsApp-based scheduling system for hair salons ("Salão de Beleza"), **multi-tenant**: one
+installation serves several empresas (salons), isolated by `empresa_id` + Postgres Row Level
+Security. All business logic lives in n8n workflows; the data store is Supabase (Postgres);
+WhatsApp messaging goes through a self-hosted Evolution API instance, one instance per empresa.
+There is no build step anywhere in this repo — both frontends are single static `index.html`
+files (Tailwind via CDN, vanilla JS), and the "backend" is JSON workflow definitions imported into
+n8n's UI.
 
 Docs (`docs/`) and code comments (including inside the n8n workflow JSON `Code` nodes) are in
 Portuguese (pt-BR); this reflects the target user (a Brazilian salon owner), so keep new
@@ -22,7 +24,7 @@ what else `git status` shows.
 
 ```
 frontend-agenda/index.html (client booking app)   ─┐
-frontend-admin/index.html (owner dashboard)        ├──HTTP──▶ n8n webhooks ──▶ Google Sheets (data store)
+frontend-admin/index.html (owner dashboard)        ├──HTTP──▶ n8n webhooks ──▶ Supabase/Postgres (data store)
                                                     │                     └──▶ Evolution API ──▶ WhatsApp
 ```
 
@@ -30,53 +32,13 @@ frontend-admin/index.html (owner dashboard)        ├──HTTP──▶ n8n we
   time → confirm via WhatsApp number. Calls n8n webhooks directly via `fetch`.
 - **`frontend-admin/index.html`** — dashboard for the salon owner: day's appointments,
   cancel/finalize actions, plus a schedule-blocking panel (time off, full-day closures).
-- **`n8n-workflows/*.json`** — the entire application backend, as importable n8n workflow files,
-  numbered in the order they should be imported:
-  - `00-listar-servicos` (`/servicos`) — reads the `Servicos` sheet tab for the service catalog
-    shown as cards in the client app.
-  - `01-horarios-disponiveis` (`/horarios-disponiveis`) — computes available time slots for a
-    given day + stylist. The weekly opening-hours grid (`gradePorDia`, keyed 0=Sunday..6=Saturday)
-    is hardcoded in this workflow's **Code** node, not in the sheet — see the comment at the top
-    of that node before changing salon hours. Also reads the `Bloqueios` sheet tab to exclude
-    times the admin has blocked off for that stylist.
-  - `02-criar-agendamento` (`/criar-agendamento`) — creates a booking. Re-checks for schedule
-    conflicts **at save time** against both existing bookings and `Bloqueios` (not just when the
-    grid was loaded, to avoid a race between two clients booking the same slot, or someone
-    calling the API directly to bypass the UI), scoped by each service's real `DuracaoMinutos`
-    (duration), not just the exact start time.
-  - `03-listar-agendamentos` (`/agendamentos`) — feeds the admin dashboard.
-  - `04-cancelar-agendamento` / `05-finalizar-agendamento` — status transitions, each notifies
-    the client over WhatsApp.
-  - `06-lembrete-automatico` — cron-triggered (hourly), sends a WhatsApp reminder 24h before an
-    appointment; uses the `LembreteEnviado` column as a dedup flag so it never double-sends.
-  - `07-chatbot-whatsapp` (`/whatsapp-in`) — Evolution API webhook target for inbound WhatsApp
-    messages; keyword-based auto-replies (`AGENDAR`, `CANCELAR`, `STATUS`, `AJUDA`), ignores
-    `fromMe: true` to avoid replying to itself.
-  - `08-criar-bloqueio` / `09-listar-bloqueios` / `10-cancelar-bloqueio` (`/criar-bloqueio`,
-    `/bloqueios`, `/cancelar-bloqueio`) — admin-only schedule blocking (folga/férias/consulta)
-    per stylist. A block with empty `HoraInicio`/`HoraFim` closes the whole day; with both set,
-    it closes only that time range. Cancelling flips `Status` to `Cancelado` rather than deleting
-    the row (same soft-delete pattern as `Agendamentos`).
-  - All workflows read config (sheet ID, Evolution API key/instance, salon phone/name) from n8n
-    environment variables (`$env.*`, injected via `docker-compose.yml` from `.env`) — no
-    per-node hardcoding.
-  - Every outbound WhatsApp send is isolated in its own **HTTP Request** node per workflow, so
-    swapping providers (e.g. to Meta's official WhatsApp Cloud API) only means editing those
-    nodes, not the booking logic.
-- **Google Sheets is the database.** One spreadsheet, three tabs: `Agendamentos` (bookings),
-  `Servicos` (service catalog), `Bloqueios` (schedule blocks). Exact column layout, including
-  which sheet `gid` each workflow's Google Sheets node is hardwired to, is documented in
-  `docs/google-sheets-schema.md` — read that before adding/reordering columns or duplicating the
-  spreadsheet, since a `sheetName` mismatch fails with `Sheet with ID <name> not found`. Editing
-  the `Servicos` tab (add row / toggle `Ativo`) is how you add or hide a service — no code
-  change needed.
 - **Evolution API** is the self-hosted WhatsApp gateway (Baileys protocol). n8n talks to it via
   HTTP for outbound sends; it forwards inbound messages to the `07-chatbot-whatsapp` webhook via
   `WEBHOOK_GLOBAL_URL`. Reference: `docs/evolution-api-setup.md`.
 - **Caddy** reverse-proxies subdomains and serves the two frontend directories as static files
-  with automatic HTTPS: `agenda.$DOMAIN` → `frontend-agenda/` (single-tenant/Google-Sheets deploy),
-  `admin.$DOMAIN` → `frontend-admin/`, `n8n.$DOMAIN` → n8n container, `evolution.$DOMAIN` →
-  Evolution API container. Routing rules: `Caddyfile`.
+  with automatic HTTPS: `agenda.$DOMAIN` → `frontend-agenda/` (bare, non-wildcard block, predates
+  the multi-tenant wildcard block below), `admin.$DOMAIN` → `frontend-admin/`, `n8n.$DOMAIN` → n8n
+  container, `evolution.$DOMAIN` → Evolution API container. Routing rules: `Caddyfile`.
   - Multi-tenant `frontend-agenda` (Supabase track) is served by a 5th block,
     `*.agenda.$DOMAIN` — one deploy for every empresa, slug resolved from the subdomain (see
     `EMPRESA_SLUG` in `frontend-agenda/index.html`). Because it's a wildcard, its certificate
@@ -88,14 +50,39 @@ frontend-admin/index.html (owner dashboard)        ├──HTTP──▶ n8n we
     provider modules) with the official `caddy-dns/cloudflare` module; and a `CLOUDFLARE_API_TOKEN`
     env var (Zone:DNS:Edit scope) consumed by the `tls { dns cloudflare ... }` block for that site
     in the `Caddyfile`.
-- **`n8n-workflows-supabase/*.json`** — a parallel set of workflows (`00`-`13`, 14 files), modeled
-  on `n8n-workflows/` but reading/writing a Supabase Postgres database instead of Google Sheets,
-  and **multi-tenant**: several empresas (salons) share one installation, isolated by
-  `empresa_id` + Postgres Row Level Security. Schema source of truth: `supabase/schema.sql` (also
-  documents the `empresas`/`perfis` tables, the `empresa_atual()` helper, and the RLS policies).
-  Every Supabase node in these files carries a placeholder credential
+- **`n8n-workflows-supabase/*.json`** — the entire application backend, 14 importable n8n workflow
+  files (`00`-`13`), **multi-tenant**: several empresas (salons) share one installation, isolated
+  by `empresa_id` + Postgres Row Level Security. Schema source of truth: `supabase/schema.sql`
+  (also documents the `empresas`/`perfis` tables, the `empresa_atual()` helper, and the RLS
+  policies). Every Supabase node in these files carries a placeholder credential
   (`PLACEHOLDER_SUPABASE_CREDENTIAL`) that must be reselected after import — see
   `docs/deploy-easypanel.md`. Design/decision history: `docs/plano-multi-tenant.md`.
+  - `00-listar-servicos` (`/servicos`) — reads the empresa's `servicos` rows for the service
+    catalog shown as cards in the client app.
+  - `01-horarios-disponiveis` (`/horarios-disponiveis`) — computes available time slots for a
+    given day + colaborador. The weekly opening-hours grid (`periodosPorDia`, keyed
+    0=Domingo..6=Sábado, 30-minute slots) is hardcoded in this workflow's **Code** node, not in
+    the database — see the comment at the top of that node before changing salon hours. Also
+    reads `bloqueios` to exclude times the admin has blocked off for that colaborador.
+  - `02-criar-agendamento` (`/criar-agendamento`) — creates a booking. Re-checks for schedule
+    conflicts **at save time** against both existing `agendamentos` and `bloqueios` (not just when
+    the grid was loaded, to avoid a race between two clients booking the same slot, or someone
+    calling the API directly to bypass the UI), scoped by each service's real `duracao_minutos`,
+    not just the exact start time.
+  - `03-listar-agendamentos` (`/agendamentos`) — feeds the admin dashboard.
+  - `04-cancelar-agendamento` / `05-finalizar-agendamento` — status transitions, each notifies
+    the client over WhatsApp.
+  - `06-lembrete-automatico` — cron-triggered (hourly), sends a WhatsApp reminder ~1h before an
+    appointment; uses the `lembrete_enviado` boolean column as a dedup flag so it never
+    double-sends.
+  - `07-chatbot-whatsapp` (`/whatsapp-in`) — Evolution API webhook target for inbound WhatsApp
+    messages; numbered-menu auto-replies (`1`/`AGENDAR`, `2`/`CANCELAR`, `3`/`STATUS`, anything
+    else falls back to the menu message), ignores `fromMe: true` to avoid replying to itself.
+  - `08-criar-bloqueio` / `09-listar-bloqueios` / `10-cancelar-bloqueio` (`/criar-bloqueio`,
+    `/bloqueios`, `/cancelar-bloqueio`) — admin-only schedule blocking (folga/férias/consulta)
+    per colaborador. A block with null `hora_inicio`/`hora_fim` closes the whole day; with both
+    set, it closes only that time range. Cancelling flips `status` to `Cancelado` rather than
+    deleting the row (same soft-delete pattern as `agendamentos`).
   - Public/anonymous workflows (`00`, `01`, `02`, and the public half of `11`) resolve the empresa
     from a `slug` **query param** on GET requests or a `slug` **body field** on the POST
     (`criar-agendamento`) — not a `:slug` path segment. n8n's `:param` dynamic webhook path only
@@ -117,8 +104,8 @@ frontend-admin/index.html (owner dashboard)        ├──HTTP──▶ n8n we
     the `servicos` table in Supabase's Table Editor — not viable once salons self-serve.
   - Multi-tenant means one Evolution API deployment hosts **one WhatsApp instance per empresa**
     (`empresas.evolution_instance`, set to the slug at signup — see `handle_new_user()` in
-    `supabase/schema.sql`), not the single global `$env.EVOLUTION_INSTANCE` the Google Sheets
-    track uses. Every outbound send in `02`, `04`, `05` looks up the sending empresa's row first
+    `supabase/schema.sql`), not a single global instance. Every outbound send in `02`, `04`, `05`
+    looks up the sending empresa's row first
     and targets `.../message/sendText/<evolution_instance>` (and uses that empresa's `nome` /
     `whatsapp_admin` in the message text) instead of the old env vars; `$env.SALON_NAME` /
     `$env.SALON_ADMIN_WHATSAPP` only survive as fallbacks where an empresa can't be resolved.
@@ -136,9 +123,9 @@ frontend-admin/index.html (owner dashboard)        ├──HTTP──▶ n8n we
     inbound WhatsApp), so they resolve the empresa from data instead: `06` joins each pending
     reminder against `empresas` to find the right `evolution_instance`; `07` reads the `instance`
     field the Evolution API includes in every inbound event.
-  - Needs two extra n8n env vars beyond the Google Sheets set: `SUPABASE_URL` and
-    `SUPABASE_ANON_KEY` (read via `$env.*` in the admin/auth workflows above; `service_role` stays
-    a credential, not an env var). See `easypanel/docker-compose.easypanel.yml`.
+  - Needs `SUPABASE_URL` and `SUPABASE_ANON_KEY` as n8n env vars (read via `$env.*` in the
+    admin/auth workflows above; `service_role` stays a credential, not an env var). See
+    `easypanel/docker-compose.easypanel.yml`.
   - **Gotcha confirmed by testing**: the native `n8n-nodes-base.supabase` node's `getAll`
     operation combines multiple `filters.conditions` with **OR** by default (its `matchType`
     parameter defaults to `anyFilter`) — not AND. Any Supabase node filtering on more than one
@@ -211,22 +198,25 @@ API on `:8080` without needing Caddy/HTTPS. With `IS_LOCAL` detection in the fro
 
 There are no automated tests, linters, or build/CI commands in this repo. "Testing" a change
 means: import/re-import the affected workflow JSON into a running n8n, activate it, and exercise
-it end-to-end (client app → sheet row appears → WhatsApp message received → admin panel reflects
-it) — see the checklist in `docs/deploy-vps-hostinger.md`.
+it end-to-end (client app → row appears in Supabase → WhatsApp message received → admin panel
+reflects it).
 
 ## Editing n8n workflows
 
-The `n8n-workflows/*.json` files are full n8n workflow exports (nodes + connections + settings).
-When changing logic that lives in these workflows:
+The `n8n-workflows-supabase/*.json` files are full n8n workflow exports (nodes + connections +
+settings). When changing logic that lives in these workflows:
 - Prefer editing the JSON directly for structural/logic changes (node parameters, `Code` node
   bodies), since there's no other source of truth — the JSON *is* the workflow.
-- Any Google Sheets node references a credential by name/ID that only exists inside a given n8n
-  instance; don't invent or change credential IDs.
-- The Google Sheets nodes' `sheetName` field is set to the tab's numeric `gid`, not its name —
-  see the "Importante" section in `docs/google-sheets-schema.md` before touching those nodes.
-- Keep using `$env.*` for anything environment-specific (sheet ID, Evolution API URL/key,
-  instance name, salon phone/name) rather than hardcoding — see `docker-compose.yml` for the full
-  list of env vars injected into the n8n container.
+- Every Supabase node carries a placeholder credential (`PLACEHOLDER_SUPABASE_CREDENTIAL`) that
+  only resolves to a real credential inside a given n8n instance after being reselected post-import
+  — don't invent or change credential IDs; see `docs/deploy-easypanel.md`.
+- Watch for the two Supabase-node gotchas documented above (`matchType: allFilters` for
+  multi-condition filters, and the `tableId` resource-locator object shape) when touching a
+  `service_role` workflow's native Supabase node.
+- Keep using `$env.*` for anything environment-specific (Evolution API URL/key, instance name,
+  salon phone/name, `SUPABASE_URL`/`SUPABASE_ANON_KEY`) rather than hardcoding — see
+  `docker-compose.yml` / `easypanel/docker-compose.easypanel.yml` for the full list of env vars
+  injected into the n8n container.
 - After editing, the change must be re-imported into n8n (Import from File) to take effect; there
   is no way to "run" these JSON files outside of n8n.
 
@@ -236,14 +226,14 @@ Single Hostinger KVM 2 VPS running the full `docker-compose.yml` stack (n8n + Po
 Evolution API + its own Postgres/Redis + Caddy), with DNS A records pointing at it for
 `n8n.`, `evolution.`, `agenda.`, `admin.` subdomains of `$DOMAIN`, plus a wildcard
 `*.agenda.$DOMAIN` record for the multi-tenant `frontend-agenda` deploy (see the Caddy wildcard
-note above) — that record's zone must be hosted on Cloudflare, not Hostinger's own DNS. Full
-step-by-step is in `docs/deploy-vps-hostinger.md`. Never commit a real `.env` — it's git-ignored,
-and only ever
+note above) — that record's zone must be hosted on Cloudflare, not Hostinger's own DNS. There is
+no dedicated step-by-step doc for this direct-VPS path (see `docs/deploy-easypanel.md` for the
+documented alternative below). Never commit a real `.env` — it's git-ignored, and only ever
 belongs on the VPS.
 
 **Alternative deployment target**: `docs/deploy-easypanel.md` documents deploying to Easypanel
-instead, paired with the Supabase-backed workflows in `n8n-workflows-supabase/` and the schema in
-`supabase/schema.sql`. It's additive — the Hostinger/Google-Sheets path above stays intact and is
-not being replaced. Supporting files for that path: `frontend-admin/Dockerfile`,
+instead, paired with the same Supabase-backed workflows in `n8n-workflows-supabase/` and the
+schema in `supabase/schema.sql` — it's a different way to host the same n8n + Evolution API stack,
+not a different backend. Supporting files for that path: `frontend-admin/Dockerfile`,
 `frontend-agenda/Dockerfile`, and `easypanel/` (a trimmed `docker-compose.easypanel.yml` and an
 `app_agendamento.env.example`).
