@@ -62,10 +62,28 @@
     })();
   </script>
 
+  <!-- Logotipo app_zapagenda (usado no selo do cabeçalho abaixo) -->
+  <svg width="0" height="0" style="position:absolute">
+    <defs>
+      <symbol id="zapagendaLogomark" viewBox="0 0 32 32">
+        <rect x="1" y="1" width="30" height="30" rx="9" fill="#c9a24b" />
+        <path
+          d="M8 11a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3h-7l-4.5 4v-4H11a3 3 0 0 1-3-3v-6z"
+          fill="#141414" />
+        <path d="M12.4 14.2l2.3 2.3 4.9-5.1" fill="none" stroke="#c9a24b" stroke-width="2.3"
+          stroke-linecap="round" stroke-linejoin="round" />
+      </symbol>
+    </defs>
+  </svg>
+
   <div class="max-w-md mx-auto min-h-screen bg-white shadow-xl flex flex-col">
 
     <!-- Cabeçalho -->
     <header class="bg-black text-white px-5 pt-8 pb-6 rounded-b-3xl">
+      <div class="flex flex-col items-center mb-4" style="width: max-content;">
+        <svg width="36" height="36"><use href="#zapagendaLogomark" /></svg>
+        <span class="mt-1 text-[0.65rem] font-bold tracking-wide">app<span class="gold">_</span>zapagenda</span>
+      </div>
       <div class="flex items-center gap-3">
         <div class="w-11 h-11 rounded-full bg-gold flex items-center justify-center font-bold text-black text-lg">✂
         </div>
