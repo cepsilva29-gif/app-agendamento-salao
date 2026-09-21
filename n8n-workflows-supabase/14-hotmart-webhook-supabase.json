@@ -1,0 +1,645 @@
+{
+  "name": "14 - Webhook Hotmart (Supabase)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "hotmart-webhook",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "s14-webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1200,
+        300
+      ],
+      "webhookId": "hotmart-webhook-post-0001-supabase"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Valida a notificacao da Hotmart e extrai os campos que interessam.\n//\n// O Hottok (token de validacao) pode vir no corpo (campo \"hottok\") ou no header\n// X-Hotmart-Hottok dependendo da versao/config do webhook na conta Hotmart -- checa os dois.\n// NAO confirmado ainda contra um envio real: use o botao \"Enviar teste\" no painel da Hotmart\n// (Ferramentas > Webhook) e confira a execucao deste workflow no n8n pra ver qual dos dois\n// formatos a sua conta usa; ajuste aqui se o campo vier em outro lugar.\n//\n// Payload esperado (webhook v2.0.0 da Hotmart): { event, data: { product: { id }, buyer: { email }, purchase: { transaction, status } } }\nconst body = $json.body || {};\nconst headers = $json.headers || {};\n\nconst hottokRecebido = body.hottok || headers['x-hotmart-hottok'] || '';\nconst autorizado = !!$env.HOTMART_HOTTOK && hottokRecebido === $env.HOTMART_HOTTOK;\n\nconst produto = (body.data && body.data.product) || {};\n// HOTMART_PRODUCT_ID vazio = nao filtra por produto (use se este webhook so recebe eventos do app_agendamento).\nconst produtoCorresponde = !$env.HOTMART_PRODUCT_ID || String(produto.id || '') === String($env.HOTMART_PRODUCT_ID);\n\nconst buyer = (body.data && body.data.buyer) || {};\nconst purchase = (body.data && body.data.purchase) || {};\n\nreturn [{\n  json: {\n    autorizado,\n    produtoCorresponde,\n    event: body.event || '',\n    email: String(buyer.email || '').trim().toLowerCase(),\n    transacao: purchase.transaction || ''\n  }\n}];"
+      },
+      "id": "s14-validar",
+      "name": "Validar Requisicao",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -960,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.autorizado }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "s14-autorizado-if",
+      "name": "Hottok Valido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.produtoCorresponde }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "s14-produto-if",
+      "name": "Produto Corresponde?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Traduz o evento da Hotmart numa acao sobre empresas.ativo.\nconst evento = $json.event;\nconst desativar = ['PURCHASE_CANCELED', 'PURCHASE_REFUNDED', 'PURCHASE_CHARGEBACK'].includes(evento);\nconst reativar = ['PURCHASE_APPROVED', 'PURCHASE_COMPLETE'].includes(evento);\n\nreturn [{ json: { ...$json, acao: desativar ? 'desativar' : (reativar ? 'reativar' : 'ignorar') } }];"
+      },
+      "id": "s14-determinar-acao",
+      "name": "Determinar Acao",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.acao }}",
+              "rightValue": "ignorar",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "s14-acao-relevante-if",
+      "name": "Acao Relevante?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": {
+          "__rl": true,
+          "value": "empresas",
+          "mode": "id"
+        },
+        "returnAll": true,
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "email",
+              "condition": "eq",
+              "keyValue": "={{ $json.email }}"
+            }
+          ]
+        },
+        "matchType": "allFilters"
+      },
+      "id": "s14-buscar-empresa",
+      "name": "Buscar Empresa Por E-mail",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        240,
+        220
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SUPABASE_CREDENTIAL",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const acao = $('Determinar Acao').first().json.acao;\nconst encontradas = $input.all().map(i => i.json).filter(row => row && row.id);\n\nif (encontradas.length === 0) {\n  return [{ json: { encontrada: false, acao } }];\n}\n\nreturn [{ json: { encontrada: true, acao, empresa_id: encontradas[0].id } }];"
+      },
+      "id": "s14-checar-empresa",
+      "name": "Checar Empresa",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.encontrada }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "s14-empresa-encontrada-if",
+      "name": "Empresa Encontrada?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        680,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.acao }}",
+              "rightValue": "desativar",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "s14-desativar-if",
+      "name": "Deve Desativar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        900,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": {
+          "__rl": true,
+          "value": "empresas",
+          "mode": "id"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.empresa_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "ativo",
+              "fieldValue": "={{ false }}"
+            }
+          ]
+        }
+      },
+      "id": "s14-desativar-empresa",
+      "name": "Desativar Empresa (Supabase)",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        60
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SUPABASE_CREDENTIAL",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": {
+          "__rl": true,
+          "value": "empresas",
+          "mode": "id"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.empresa_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "ativo",
+              "fieldValue": "={{ true }}"
+            }
+          ]
+        }
+      },
+      "id": "s14-reativar-empresa",
+      "name": "Reativar Empresa (Supabase)",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        220
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "PLACEHOLDER_SUPABASE_CREDENTIAL",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"sucesso\": true, \"empresa_id\": $json.id, \"ativo\": $json.ativo } }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "s14-respond-atualizado",
+      "name": "Responder Atualizado",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"sucesso\": false, \"mensagem\": \"Hottok invalido.\" } }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          },
+          "responseCode": 401
+        }
+      },
+      "id": "s14-respond-401",
+      "name": "Responder Nao Autorizado",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -720,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"sucesso\": true, \"ignorado\": true, \"motivo\": \"Produto diferente do app_agendamento.\" } }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "s14-respond-produto-diferente",
+      "name": "Responder Produto Diferente",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -480,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"sucesso\": true, \"ignorado\": true, \"motivo\": \"Evento nao tratado: \" + $json.event } }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "s14-respond-evento-ignorado",
+      "name": "Responder Evento Ignorado",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"sucesso\": true, \"ignorado\": true, \"motivo\": \"Nenhuma empresa cadastrada com este e-mail ainda.\" } }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "s14-respond-empresa-nao-encontrada",
+      "name": "Responder Empresa Nao Encontrada",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        680,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validar Requisicao",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Requisicao": {
+      "main": [
+        [
+          {
+            "node": "Hottok Valido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hottok Valido?": {
+      "main": [
+        [
+          {
+            "node": "Produto Corresponde?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Nao Autorizado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Produto Corresponde?": {
+      "main": [
+        [
+          {
+            "node": "Determinar Acao",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Produto Diferente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Determinar Acao": {
+      "main": [
+        [
+          {
+            "node": "Acao Relevante?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Acao Relevante?": {
+      "main": [
+        [
+          {
+            "node": "Buscar Empresa Por E-mail",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Evento Ignorado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Empresa Por E-mail": {
+      "main": [
+        [
+          {
+            "node": "Checar Empresa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checar Empresa": {
+      "main": [
+        [
+          {
+            "node": "Empresa Encontrada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Empresa Encontrada?": {
+      "main": [
+        [
+          {
+            "node": "Deve Desativar?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Empresa Nao Encontrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deve Desativar?": {
+      "main": [
+        [
+          {
+            "node": "Desativar Empresa (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reativar Empresa (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Desativar Empresa (Supabase)": {
+      "main": [
+        [
+          {
+            "node": "Responder Atualizado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reativar Empresa (Supabase)": {
+      "main": [
+        [
+          {
+            "node": "Responder Atualizado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "pinData": {}
+}

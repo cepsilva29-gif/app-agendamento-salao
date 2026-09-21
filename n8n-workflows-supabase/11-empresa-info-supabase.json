@@ -261,7 +261,7 @@
           "parameters": [
             {
               "name": "select",
-              "value": "nome,colaboradores,slug"
+              "value": "nome,colaboradores,slug,ativo"
             }
           ]
         },
@@ -280,7 +280,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { \"nome\": $json.nome, \"colaboradores\": $json.colaboradores || [], \"slug\": $json.slug } }}",
+        "responseBody": "={{ { \"nome\": $json.nome, \"colaboradores\": $json.colaboradores || [], \"slug\": $json.slug, \"ativo\": $json.ativo } }}",
         "options": {
           "responseHeaders": {
             "entries": [

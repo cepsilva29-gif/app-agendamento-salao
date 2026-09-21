@@ -61,6 +61,12 @@ services:
       # docs/deploy-easypanel.md.
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      # Workflow 14 (webhook Hotmart, /hotmart-webhook): HOTMART_HOTTOK e o token de validacao
+      # mostrado no painel da Hotmart (Ferramentas > Webhook) pro produto app_agendamento;
+      # HOTMART_PRODUCT_ID filtra esse produto entre outros que a mesma conta Hotmart possa ter
+      # (deixe vazio pra nao filtrar). Ver supabase/schema.sql e n8n-workflows-supabase/14-*.
+      - HOTMART_HOTTOK=${HOTMART_HOTTOK}
+      - HOTMART_PRODUCT_ID=${HOTMART_PRODUCT_ID}
       - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
     volumes:
       - n8n_data:/home/node/.n8n

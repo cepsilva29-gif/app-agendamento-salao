@@ -112,6 +112,22 @@
     </div>
   </div>
 
+  <!-- Mostrado no lugar do dashboard quando a assinatura da empresa está inativa (cancelamento/
+       reembolso/chargeback na Hotmart, ver workflow 14-hotmart-webhook). -->
+  <div id="contaDesativadaOverlay" class="min-h-screen flex flex-col items-center justify-center px-5 py-8 hidden text-center">
+    <div class="flex flex-col items-center mb-6">
+      <svg width="64" height="64"><use href="#zapagendaLogomark" /></svg>
+      <span class="mt-2 text-base font-bold tracking-wide">app<span class="gold">_</span>zapagenda</span>
+    </div>
+    <div class="card rounded-2xl p-6 w-full max-w-sm">
+      <h1 class="text-xl font-bold mb-2">Assinatura inativa</h1>
+      <p class="text-sm text-gray-400 mb-6">Sua assinatura foi cancelada, reembolsada ou está com pagamento
+        pendente. Regularize a assinatura para voltar a usar o painel.</p>
+      <button id="btnSairContaDesativada"
+        class="w-full border border-[#262b33] text-sm font-semibold py-2.5 rounded-lg">Sair</button>
+    </div>
+  </div>
+
   <div id="dashboardApp" class="max-w-7xl mx-auto px-5 py-8 hidden">
 
     <header class="flex flex-wrap items-center justify-between gap-4 mb-8">
@@ -438,16 +454,27 @@
             linkEl.textContent = link;
             document.getElementById('linkAgendamentoBox').classList.remove('hidden');
           }
+          return dados.ativo !== false;
         } catch (err) {
           document.getElementById('nomeEmpresaHeader').textContent = 'Painel';
+          return true;
         }
       }
+
+      const contaDesativadaEl = document.getElementById('contaDesativadaOverlay');
+      document.getElementById('btnSairContaDesativada').addEventListener('click', () => supabase.auth.signOut());
 
       supabase.auth.onAuthStateChange((_event, session) => {
         if (session) {
           authEl.overlay.classList.add('hidden');
+          contaDesativadaEl.classList.add('hidden');
           authEl.dashboard.classList.remove('hidden');
-          carregarEmpresaInfo().then(() => {
+          carregarEmpresaInfo().then((ativo) => {
+            if (!ativo) {
+              authEl.dashboard.classList.add('hidden');
+              contaDesativadaEl.classList.remove('hidden');
+              return;
+            }
             carregarBloqueios();
             carregarAgendamentos();
             carregarServicos();
@@ -455,6 +482,7 @@
           });
         } else {
           authEl.dashboard.classList.add('hidden');
+          contaDesativadaEl.classList.add('hidden');
           authEl.overlay.classList.remove('hidden');
         }
       });

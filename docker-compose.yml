@@ -76,6 +76,10 @@ services:
       # workflows de n8n-workflows/ (Google Sheets). Ver supabase/schema.sql e docs/deploy-easypanel.md.
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      # Workflow 14 (webhook Hotmart, /hotmart-webhook) — ver comentario equivalente em
+      # easypanel/docker-compose.easypanel.yml.
+      - HOTMART_HOTTOK=${HOTMART_HOTTOK}
+      - HOTMART_PRODUCT_ID=${HOTMART_PRODUCT_ID}
       - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
     volumes:
       - n8n_data:/home/node/.n8n

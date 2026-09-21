@@ -123,9 +123,27 @@ frontend-admin/index.html (owner dashboard)        ├──HTTP──▶ n8n we
     inbound WhatsApp), so they resolve the empresa from data instead: `06` joins each pending
     reminder against `empresas` to find the right `evolution_instance`; `07` reads the `instance`
     field the Evolution API includes in every inbound event.
+  - `14-hotmart-webhook-supabase` (`/hotmart-webhook` POST) is the Hotmart postback target for the
+    app_agendamento product being sold on Hotmart. The empresa still self-provisions the normal way
+    (signs up on `frontend-admin`, which already sends a Supabase Auth confirmation e-mail) — this
+    workflow does **not** create accounts. It only reacts to Hotmart's own purchase lifecycle:
+    validates the `X-Hotmart-Hottok` header/`hottok` body field against `$env.HOTMART_HOTTOK`
+    (whichever one the buyer's Hotmart account actually sends — not yet confirmed by a real test
+    send, see the Code node's comment) and the product against `$env.HOTMART_PRODUCT_ID`, then on
+    `PURCHASE_CANCELED`/`PURCHASE_REFUNDED`/`PURCHASE_CHARGEBACK` looks up `empresas` by
+    `email` (matched against the buyer's Hotmart e-mail) and sets `ativo = false`; on
+    `PURCHASE_APPROVED`/`PURCHASE_COMPLETE` it sets `ativo = true` back (re-subscribe case). If no
+    empresa exists yet for that e-mail (buyer hasn't signed up), it's a no-op — new signups already
+    default to `ativo = true`. `empresas.email` is populated automatically by `handle_new_user()`
+    from `auth.users.email` (no new signup field) specifically so this workflow can do that lookup.
+    `ativo = false` is enforced in two places: `frontend-admin` shows a "assinatura inativa" screen
+    instead of the dashboard after login (via the `ativo` field `11-empresa-info-supabase` now
+    returns), and `00`/`01`/`02`/`11`'s public halves already refused to resolve an inactive
+    empresa by slug (`ativo = true` was already one of their filter conditions) — so this closes
+    the enforcement gap only on the admin-dashboard side.
   - Needs `SUPABASE_URL` and `SUPABASE_ANON_KEY` as n8n env vars (read via `$env.*` in the
-    admin/auth workflows above; `service_role` stays a credential, not an env var). See
-    `easypanel/docker-compose.easypanel.yml`.
+    admin/auth workflows above; `service_role` stays a credential, not an env var). `14` also needs
+    `HOTMART_HOTTOK` and `HOTMART_PRODUCT_ID`. See `easypanel/docker-compose.easypanel.yml`.
   - **Gotcha confirmed by testing**: the native `n8n-nodes-base.supabase` node's `getAll`
     operation combines multiple `filters.conditions` with **OR** by default (its `matchType`
     parameter defaults to `anyFilter`) — not AND. Any Supabase node filtering on more than one
@@ -141,7 +159,7 @@ frontend-admin/index.html (owner dashboard)        ├──HTTP──▶ n8n we
     resolve/display it, shows "Error fetching options from Supabase" on the field, and — more
     importantly — refuses to **Publish** the workflow ("1 node has issues") until every affected
     node is fixed. Affects only the `service_role` workflows that use the native node directly
-    (`00`, `01`, `02`, `06`, `07`, and the public half of `11`); the admin/RLS workflows are
+    (`00`, `01`, `02`, `06`, `07`, `14`, and the public half of `11`); the admin/RLS workflows are
     unaffected since they call PostgREST via **HTTP Request** nodes instead.
 
 ### Frontend ↔ backend wiring

@@ -34,6 +34,9 @@ create table if not exists empresas (
   id                 bigint generated always as identity primary key,
   slug               text not null unique,          -- usado no path dos webhooks publicos, ex: 'empresa-da-ana'
   nome               text not null,
+  email              text,                           -- e-mail do dono (auth.users.email no signup); usado pelo
+                                                       -- workflow 14 (webhook Hotmart) para achar a empresa por
+                                                       -- e-mail do comprador e (des)ativar no cancelamento/reembolso
   whatsapp_admin     text not null,                  -- notificado a cada novo agendamento
   evolution_instance text not null unique,           -- nome da instancia na Evolution API
   timezone           text not null default 'America/Sao_Paulo',
@@ -98,6 +101,14 @@ create table if not exists bloqueios (
 -- existentes): adiciona empresa_id, troca o unique de servicos e remove os índices antigos sem
 -- empresa_id. Sem efeito (tudo IF NOT EXISTS/IF EXISTS) numa instalação nova, onde as tabelas já
 -- nascem com empresa_id pelos CREATE TABLE acima.
+-- Migração para instalações que já tinham `empresas` sem a coluna `email` (adicionada para o
+-- workflow 14, webhook Hotmart, casar compra <-> empresa por e-mail do comprador). Sem efeito
+-- numa instalação nova, onde a coluna já nasce populada pelo handle_new_user() acima.
+alter table empresas add column if not exists email text;
+update empresas e set email = u.email
+  from perfis p join auth.users u on u.id = p.user_id
+  where p.empresa_id = e.id and e.email is null;
+
 alter table servicos     add column if not exists empresa_id bigint references empresas(id) on delete cascade;
 alter table agendamentos add column if not exists empresa_id bigint references empresas(id) on delete cascade;
 alter table bloqueios    add column if not exists empresa_id bigint references empresas(id) on delete cascade;
@@ -162,10 +173,11 @@ as $$
 declare
   v_empresa_id bigint;
 begin
-  insert into empresas (slug, nome, whatsapp_admin, evolution_instance, colaboradores)
+  insert into empresas (slug, nome, email, whatsapp_admin, evolution_instance, colaboradores)
   values (
     new.raw_user_meta_data->>'slug',
     new.raw_user_meta_data->>'nome_empresa',
+    new.email, -- e-mail de login (nao vem do metadata); usado pelo workflow 14 (Hotmart) para casar compra <-> empresa
     new.raw_user_meta_data->>'whatsapp_admin',
     new.raw_user_meta_data->>'slug', -- 1 instancia Evolution por empresa; nome da instancia = slug
     coalesce(new.raw_user_meta_data->'colaboradores', '[]'::jsonb)
